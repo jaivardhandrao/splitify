@@ -25,6 +25,8 @@ router.get('/me', auth, async (req, res) => {
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
+
+  const APP_URL = 'https://splitify-pi.vercel.app'
   try {
     const { email, password, name, phone } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Required fields' });
