@@ -36,7 +36,7 @@ function Dashboard() {
 
 // NEW
 
-const APP_URL = 'something.vercel.app'
+const APP_URL = 'https://splitify-pi.vercel.app/'
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
 
   const token = localStorage.getItem('token');
