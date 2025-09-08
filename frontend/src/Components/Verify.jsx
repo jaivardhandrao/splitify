@@ -8,7 +8,11 @@ function Verify() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('Verifying your email...');
   const [error, setError] = useState('');
-  const API_BASE = 'http://localhost:5666/api';
+ // OLD
+// const API_BASE = 'http://localhost:5666/api';
+
+// NEW
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
 
   useEffect(() => {
     const verifyEmail = async () => {

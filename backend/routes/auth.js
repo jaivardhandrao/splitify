@@ -37,7 +37,7 @@ router.post('/register', async (req, res) => {
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
     // change for deployment
-    const url = `http://localhost:5173/verify/${token}`;
+    const url = `${APP_URL}/verify/${token}`;
    
     const mailOptions = {
       to: email,
@@ -124,6 +124,8 @@ router.post('/verify/:token', async (req, res) => {
 
 // POST /api/auth/forgot-password - Send reset email
 router.post('/forgot-password', async (req, res) => {
+
+  const APP_URL = 'something.vercel.app'
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'Email required' });
@@ -133,7 +135,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Generate reset token (expires in 1h)
     const token = jwt.sign({ id: user._id, type: 'reset' }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    const url = `http://localhost:5173/reset-password/${token}`;  // Localhost for dev
+    const url = `${APP_URL}/reset-password/${token}`;  // Localhost for dev
 
     const mailOptions = {
       to: email,

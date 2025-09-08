@@ -8,11 +8,17 @@ function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  // OLD
+// const API_BASE = 'http://localhost:5666/api';
+
+// NEW
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post(`http://localhost:5666/api/auth/reset-password/${token}`, { password });
+      await axios.post(`${API_BASE}/auth/reset-password/${token}`, { password });
       setMessage('Password reset successful! Redirecting to login...');
       setTimeout(() => window.location.href = '/', 2000);
     } catch (err) {

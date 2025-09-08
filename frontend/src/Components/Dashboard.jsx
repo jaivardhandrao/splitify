@@ -31,7 +31,14 @@ function Dashboard() {
 
   
 
-  const API_BASE = 'http://localhost:5666/api';
+// OLD
+// const API_BASE = 'http://localhost:5666/api';
+
+// NEW
+
+const APP_URL = 'something.vercel.app'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
+
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
 
@@ -175,8 +182,8 @@ function Dashboard() {
 
     const shareData = {
       title: `Join ${activeGroup.name} on Splitify!`,
-      text: `Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit http://localhost:5173 to get started!`,
-      url: `http://localhost:5173/join?groupId=${activeGroup._id}`
+      text: `Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit ${APP_URL} to get started!`,
+      url: `${APP_URL}/join?groupId=${activeGroup._id}`
     };
 
     try {
@@ -750,7 +757,7 @@ function Dashboard() {
             </div>
             <textarea
               readOnly
-              value={`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit http://localhost:5173 to get started!`}
+              value={`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit ${APP_URL} to get started!`}
               className="w-full p-3 border rounded-md resize-none text-sm"
               rows={3}
               placeholder="Preset message (copy and paste)"
@@ -758,7 +765,7 @@ function Dashboard() {
             <div className="flex space-x-2">
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit http://localhost:5173 to get started!`);
+                  navigator.clipboard.writeText(`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit ${APP_URL} to get started!`);
                   showNotification('Message copied!');
                 }}
                 className="flex-1 bg-emerald-600 text-white py-2 rounded-md hover:bg-emerald-700"
