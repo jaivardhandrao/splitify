@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 dotenv.config();  // Loads .env file
 
 const app = express();
-app.use(cors());  // Allows frontend requests
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
 app.use(express.json());  // Parses JSON bodies
 
 // Connect to MongoDB Atlas
