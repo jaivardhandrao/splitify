@@ -1,16 +1,19 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+// export default App;
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import LoginSignup from './Components/LoginSignup';
+import Dashboard from './Components/Dashboard';
 import Verify from './Components/Verify'; 
-import Dashboard from './Components/Dashboard'; 
+import ResetPassword from './Components/ResetPassword'; // New import
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<LoginSignup />} />
-        <Route path="/verify/:token" element={<Verify />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/verify/:token" element={<Verify />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} /> {/* New route */}
       </Routes>
     </Router>
   );

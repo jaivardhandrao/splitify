@@ -4,6 +4,30 @@ const Group = require('../models/Group');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
+// PATCH /api/expenses/:expenseId - Update isSettled status
+router.patch('/:expenseId', auth, async (req, res) => {
+  try {
+    const { isSettled } = req.body;
+    if (typeof isSettled !== 'boolean') return res.status(400).json({ error: 'isSettled must be a boolean' });
+
+    const expense = await Expense.findById(req.params.expenseId);
+    if (!expense) return res.status(404).json({ error: 'Expense not found' });
+
+    const user = req.user;
+    const group = await Group.findById(expense.group);
+    if (!group || !group.members.some(m => m.toString() === user._id.toString())) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    expense.isSettled = isSettled;
+    await expense.save();
+
+    res.json({ message: 'Expense updated successfully', expense });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update expense' });
+  }
+});
+
 // POST /api/expenses - Add expense
 router.post('/', auth, async (req, res) => {
   try {
@@ -23,38 +47,6 @@ router.post('/', auth, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
-
-// GET /api/expenses/:groupId - List expenses and balances
-// old code
-// router.get('/:groupId', auth, async (req, res) => {
-//   try {
-//     const { groupId } = req.params;
-//     const user = req.user;
-//     const group = await Group.findById(groupId).populate('members', 'email').populate('expenses');
-//     if (!group || !group.members.some(m => m._id.toString() === user._id.toString())) return res.status(403).json({ error: 'Unauthorized' });
-
-//     // Simple balance calculation
-//     const balances = {};
-//     group.members.forEach(m => balances[m._id] = 0);
-//     group.expenses.forEach(exp => {
-//       const share = exp.amount / exp.participants.length;
-//       balances[exp.paidBy] -= share * (exp.participants.length - 1);
-//       exp.participants.forEach(p => {
-//         if (p.toString() !== exp.paidBy.toString()) balances[p] += share;
-//       });
-//     });
-
-//     const settlements = []; // Simplified: who owes whom
-//     Object.keys(balances).forEach(id => {
-//       if (balances[id] > 0) settlements.push({ user: id, owes: balances[id] });
-//     });
-
-//     res.json({ expenses: group.expenses, balances, settlements });
-//   } catch (error) {
-//     res.status(500).json({ error: 'Server error' });
-//   }
-// });
-
 
 // new code
 router.get('/:groupId', auth, async (req, res) => {

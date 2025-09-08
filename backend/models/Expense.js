@@ -8,6 +8,7 @@ const expenseSchema = new mongoose.Schema({
   participants: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   date: { type: Date, default: Date.now },
   splitType: { type: String, default: 'equal' },
+  isSettled: { type: Boolean, default: false }, // New field with default unset
 }, { timestamps: true });
 
 module.exports = mongoose.model('Expense', expenseSchema);

@@ -7,8 +7,8 @@ function Dashboard() {
   const [activeGroup, setActiveGroup] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [balances, setBalances] = useState({});
-  const [optimizedTransactions, setOptimizedTransactions] = useState([]); // New: Minimized transactions
-  const [isCalculating, setIsCalculating] = useState(false); // New: Loader for recalc
+  const [optimizedTransactions, setOptimizedTransactions] = useState([]);
+  const [isCalculating, setIsCalculating] = useState(false);
   const [joinRequests, setJoinRequests] = useState([]);
   const [userEmail, setUserEmail] = useState('');
   const [userName, setUserName] = useState('');
@@ -21,10 +21,15 @@ function Dashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [notification, setNotification] = useState(''); // For success popups
+  const [notification, setNotification] = useState('');
   const [copyStatus, setCopyStatus] = useState('Copy ID');
-  const [isPressed, setIsPressed] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
+  const [leaveError, setLeaveError] = useState(''); // For balance error
+  const [isPressed, setIsPressed] = useState(false); // For button press effect
+  const [expenseIsSettled, setExpenseIsSettled] = useState(false); // New state for settled status
+
+  
 
   const API_BASE = 'http://localhost:5666/api';
   const token = localStorage.getItem('token');
@@ -42,7 +47,7 @@ function Dashboard() {
         setUserEmail(res.data.email);
         setUserName(res.data.name || 'User');
         setUserPhone(res.data.phone || 'N/A');
-        setExpensePaidBy(res.data.email); // Default to self
+        setExpensePaidBy(res.data.email);
         fetchGroups();
       })
       .catch(() => {
@@ -65,7 +70,7 @@ function Dashboard() {
         .then(res => {
           setExpenses(res.data.expenses);
           setBalances(res.data.balances);
-          calculateOptimizedTransactions(res.data.balances); // Call the function
+          calculateOptimizedTransactions(res.data.balances);
         })
         .catch(err => setError('Failed to load expenses: ' + err.message));
 
@@ -143,7 +148,6 @@ function Dashboard() {
 
       setIsAddExpenseModalOpen(false);
       showNotification('Expense added!');
-      // Refresh
       axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(res => {
           setExpenses(res.data.expenses);
@@ -154,52 +158,39 @@ function Dashboard() {
       setError('Failed to add expense: ' + (err.response?.data?.error || err.message));
     }
 
-    // Reset form
     setExpenseTitle('');
     setExpenseAmount('');
     setExpensePaidBy(userEmail);
     setExpenseParticipants([]);
   };
 
-  // New: Function for notification popup
+
   const showNotification = (msg) => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 2000);
+    setTimeout(() => setNotification(''), 3000);
   };
 
-  // New: Copy group ID
-  const handleCopyGroupId = () => {
-    navigator.clipboard.writeText(activeGroup._id);
-    setCopyStatus('Copied!');
-    setTimeout(() => setCopyStatus('Copy ID'), 2000);
-  };
-
-  // Enhanced: Share group ID with preset message
   const handleShareGroupId = async () => {
     if (!activeGroup) return;
 
     const shareData = {
       title: `Join ${activeGroup.name} on Splitify!`,
-      text: `Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit https://your-app-url.com to get started!`,  // Preset message - customize URL
-      url: `https://your-app-url.com/join?groupId=${activeGroup._id}`  // Optional deep link
+      text: `Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit http://localhost:5173 to get started!`,
+      url: `http://localhost:5173/join?groupId=${activeGroup._id}`
     };
 
     try {
-      // Native share on mobile (iOS/Android)
       if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         await navigator.share(shareData);
         showNotification('Group shared successfully!');
-        return;  // Success, no modal
+        return;
       }
     } catch (err) {
-      console.log('Share failed:', err);  // User canceled or error
+      console.log('Share failed:', err);
     }
 
-    // Fallback: Open modal for desktop or unsupported
     setIsShareModalOpen(true);
   };
-
-  // Brute force solution: Compute balances from expenses, then settle debts
 
   const calculateOptimizedTransactions = (currentBalances) => {  // Ignore param, use expenses
     // console.log('Expenses for calculation:', expenses);  // Your log
@@ -218,8 +209,11 @@ function Dashboard() {
       balances[member._id.toString()] = 0;  // Initialize for all members
     });
 
+
+
     expenses.forEach(expense => {
-      if (expense.splitType !== 'equal') {
+      
+      if (expense.splitType !== 'equal' || expense.isSettled === true) {
         // console.warn('Non-equal split not supported, skipping:', expense.title);
         return;
       }
@@ -299,11 +293,9 @@ function Dashboard() {
       };
     });
 
-    // console.log('Named Transactions:', namedTransactions);
-
+    console.log('Named Transactions:', namedTransactions);
 
     setTimeout(() => {
-
 
       setOptimizedTransactions(namedTransactions);
       setIsCalculating(false);
@@ -312,28 +304,42 @@ function Dashboard() {
 
   };
 
-
   const handleRecalculateClick = () => {
     if (!isCalculating && activeGroup) {
       calculateOptimizedTransactions(balances);
     }
   };
 
-  const disabled = isCalculating || !activeGroup;
+  const handleLeaveGroup = async () => {
+    if (!activeGroup) return;
+
+    const userBalance = balances[userEmail] || 0;
+    if (Math.abs(userBalance) > 0.01) {
+      setLeaveError(`Cannot leave. You have a pending balance of ₹${Math.abs(userBalance).toFixed(2)}. Settle it first.`);
+      return;
+    }
+
+    try {
+      await axios.post(`${API_BASE}/groups/${activeGroup._id}/leave`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      showNotification('Successfully left the group!');
+      setActiveGroup(null);
+      fetchGroups();
+    } catch (err) {
+      setLeaveError(err.response?.data?.error || 'Failed to leave group.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Notification Popup */}
       {notification && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-200 text-green-700 px-4 py-2 rounded-md shadow-md flex items-center space-x-2 z-50 animate-fade-in-out">
-          <svg className="w-5 h-5 animate-check" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <p>{notification}</p>
         </div>
       )}
 
-      {/* Navbar - same as before */}
       <nav className="bg-white shadow-lg border-b border-gray-200 px-4 py-4">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           <div className="flex items-center space-x-2 flex-1">
@@ -364,7 +370,6 @@ function Dashboard() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <div className="flex flex-1 overflow-hidden relative">
         {loading && <p className="text-center">Loading...</p>}
         {error && <p className="text-red-500 text-center">{error}</p>}
@@ -413,6 +418,12 @@ function Dashboard() {
                     <button onClick={handleShareGroupId} className="ml-2 text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors">
                       Share ID
                     </button>
+                    <button
+                      onClick={() => setIsLeaveModalOpen(true)}
+                      className="ml-2 text-red-600 hover:text-red-500 text-sm font-medium transition-colors"
+                    >
+                      Leave Group
+                    </button>
                   </p>
                 </div>
                 <div className={`px-3 py-2 rounded-full text-sm font-semibold w-full sm:w-auto text-center ${balances[userEmail] > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -440,8 +451,111 @@ function Dashboard() {
             </div>
           )}
 
-          {/* optimize transaction section */}
-          <div className="mt-8 my-7 bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
+          {/* Expenses History */}
+          {/* <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
+            <div className="space-y-4 mb-6">
+              {expenses.map((expense) => {
+                const paidById = expense.paidBy?._id || expense.paidBy;
+                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
+                const paidByDisplay = paidByMember
+                  ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
+                  : (expense.paidBy?.name || 'Unknown');
+
+                const participantDisplays = expense.participants.map((participantObj) => {
+                  const participantId = participantObj?._id || participantObj;
+                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
+                  return participantMember
+                    ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
+                    : participantId;
+                }).join(', ');
+
+                return (
+                  <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
+                    <p className="font-medium text-gray-900">{expense.title}</p>
+                    <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
+                    <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
+                    <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setIsAddExpenseModalOpen(true)} className="mt-6 w-full bg-emerald-600 text-white py-3 px-4 rounded-md font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform hover:scale-[1.02] shadow-sm hover:shadow-md">
+              Add New Expense
+            </button>
+          </div> */}
+
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
+            <div className="space-y-4 mb-6">
+              {expenses.map((expense) => {
+                const paidById = expense.paidBy?._id || expense.paidBy;
+                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
+                const paidByDisplay = paidByMember
+                  ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
+                  : (expense.paidBy?.name || 'Unknown');
+
+                const participantDisplays = expense.participants.map((participantObj) => {
+                  const participantId = participantObj?._id || participantObj;
+                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
+                  return participantMember
+                    ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
+                    : participantId;
+                }).join(', ');
+
+                // New: Handler to toggle isSettled
+                const handleToggleSettled = async () => {
+                  try {
+                    await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
+                      isSettled: !expense.isSettled
+                    }, { headers: { Authorization: `Bearer ${token}` } });
+                    showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
+                    // Refresh expenses to update the UI
+                    const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
+                    setExpenses(res.data.expenses);
+                    setBalances(res.data.balances);
+                    calculateOptimizedTransactions(res.data.balances);
+                  } catch (err) {
+                    setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
+                  }
+                };
+
+                return (
+                  <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
+                    <p className="font-medium text-gray-900">{expense.title}</p>
+                    <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
+                    <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
+                    <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
+                    {/* New: Settled/Unsettled Toggle */}
+                    <div className="mt-2 flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`settled-${expense._id}`}
+                        checked={expense.isSettled || false}
+                        onChange={handleToggleSettled}
+                        className="h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer transition-all duration-200"
+                      />
+                      <label
+                        htmlFor={`settled-${expense._id}`}
+                        className="ml-2 text-sm text-gray-700 font-medium hover:text-emerald-600 transition-colors"
+                      >
+                        {expense.isSettled ? 'Settled' : 'Unsettled'}
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setIsAddExpenseModalOpen(true)} className="mt-6 w-full bg-emerald-600 text-white py-3 px-4 rounded-md font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform hover:scale-[1.02] shadow-sm hover:shadow-md">
+              Add New Expense
+            </button>
+          </div>
+
+
+
+
+          {/* Optimized Transactions */}
+          <div className="mt-8 bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                 <svg className="w-5 h-5 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -449,11 +563,10 @@ function Dashboard() {
                 </svg>
                 Optimized Transactions
               </h3>
-
               <button
-                onClick={handleRecalculateClick}  // Use a wrapper handler (defined below)
+                onClick={handleRecalculateClick}
                 disabled={isCalculating || !activeGroup}
-                className="px-4 py-2 bg-emerald-600 text-white cursor-pointer rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all duration-300 ease-in-out transform shadow-md hover:shadow-lg optimize-btn-container"  // Added class for shimmer/hover
+                className="px-4 py-2 bg-emerald-600 text-white cursor-pointer rounded-md hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all duration-300 ease-in-out transform shadow-md hover:shadow-lg optimize-btn-container"
                 onMouseDown={() => setIsPressed(true)}
                 onMouseUp={() => setIsPressed(false)}
                 onMouseLeave={() => setIsPressed(false)}
@@ -472,25 +585,24 @@ function Dashboard() {
                   fontWeight: '600',
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
-                  cursor: (disabled || !activeGroup) ? 'not-allowed' : 'pointer',
+                  cursor: (isCalculating || !activeGroup) ? 'not-allowed' : 'pointer',
                   minWidth: '220px',
                   overflow: 'hidden',
                   backdropFilter: 'blur(10px)',
                   textShadow: '0 1px 2px rgba(0,0,0,0.2)',
                   transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                   transform: isPressed ? 'translateY(-1px) scale(0.98)' :
-                    (disabled || !activeGroup) ? 'none' : 'translateY(0) scale(1)',
-                  boxShadow: (disabled || !activeGroup)
+                    (isCalculating || !activeGroup) ? 'none' : 'translateY(0) scale(1)',
+                  boxShadow: (isCalculating || !activeGroup)
                     ? '0 4px 16px rgba(16,185,129,0.1)'
                     : isCalculating
                       ? '0 16px 48px rgba(16,185,129,0.4), 0 8px 24px rgba(16,185,129,0.3), inset 0 1px 0 rgba(255,255,255,0.3)'
                       : '0 8px 32px rgba(16,185,129,0.3), 0 4px 16px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.2)',
-                  opacity: (disabled || !activeGroup) ? 0.6 : 1,
+                  opacity: (isCalculating || !activeGroup) ? 0.6 : 1,
                 }}
               >
                 {isCalculating ? (
                   <>
-                    {/* Aesthetic Green Thunder Icon with Energy Pulse + Spin Animation */}
                     <svg
                       className="lightning-icon"
                       style={{
@@ -526,7 +638,6 @@ function Dashboard() {
                   </>
                 ) : (
                   <>
-                    {/* Static Thunder Icon for Idle State */}
                     <svg
                       className="lightning-icon"
                       style={{
@@ -561,7 +672,6 @@ function Dashboard() {
                   </>
                 )}
               </button>
-
             </div>
             <div className="space-y-3 cursor-pointer">
               {optimizedTransactions.map((tx, index) => (
@@ -573,44 +683,6 @@ function Dashboard() {
               {optimizedTransactions.length === 0 && <p className="text-gray-500 text-center">All settled up!</p>}
             </div>
           </div>
-
-
-          {/* show expenses */}
-          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
-            <div className="space-y-4 mb-6">
-              {expenses.map((expense) => {
-                // FIXED: Use expense.paidBy._id (since paidBy is populated object)
-                const paidById = expense.paidBy?._id || expense.paidBy; // Fallback if not populated
-                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
-                const paidByDisplay = paidByMember
-                  ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
-                  : (expense.paidBy?.name || 'Unknown'); // Fallback to populated name or ID
-
-                // FIXED: Map over expense.participants (array of objects { _id }), use p._id for lookup
-                const participantDisplays = expense.participants.map((participantObj) => {
-                  const participantId = participantObj?._id || participantObj; // Fallback if string
-                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
-                  return participantMember
-                    ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
-                    : participantId; // Fallback to ID
-                }).join(', ');
-
-                return (
-                  <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
-                    <p className="font-medium text-gray-900">{expense.title}</p>
-                    <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
-                    <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
-                    <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <button onClick={() => setIsAddExpenseModalOpen(true)} className="mt-6 w-full bg-emerald-600 text-white py-3 px-4 rounded-md font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform shadow-sm hover:shadow-md cursor-pointer">
-              Add New Expense
-            </button>
-          </div>
-
         </main>
       </div>
 
@@ -671,16 +743,14 @@ function Dashboard() {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
             <h3 className="text-lg font-bold text-gray-900">Share Group Invitation</h3>
-            <p className="text-sm text-gray-600">
-              Share this with friends to invite them:
-            </p>
+            <p className="text-sm text-gray-600">Share this with friends to invite them:</p>
             <div className="bg-gray-100 p-3 rounded-md">
               <p className="text-sm font-mono break-all">{activeGroup._id}</p>
               <p className="text-xs text-gray-500 mt-1">Group: {activeGroup.name} | Invited by: {userName}</p>
             </div>
             <textarea
               readOnly
-              value={`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit https://your-app-url.com to get started!`}
+              value={`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit http://localhost:5173 to get started!`}
               className="w-full p-3 border rounded-md resize-none text-sm"
               rows={3}
               placeholder="Preset message (copy and paste)"
@@ -688,7 +758,7 @@ function Dashboard() {
             <div className="flex space-x-2">
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit https://your-app-url.com to get started!`);
+                  navigator.clipboard.writeText(`Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit http://localhost:5173 to get started!`);
                   showNotification('Message copied!');
                 }}
                 className="flex-1 bg-emerald-600 text-white py-2 rounded-md hover:bg-emerald-700"
@@ -706,71 +776,85 @@ function Dashboard() {
         </div>
       )}
 
-      <style>{`
-  @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes fade-in-out { 0% { opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { opacity: 0; } }
-  @keyframes energyPulse {
-    0%, 100% {
-      transform: rotate(0deg) scale(1);
-      filter: drop-shadow(0 0 8px rgba(167,243,208,0.6));
-    }
-    25% {
-      transform: rotate(90deg) scale(1.1);
-      filter: drop-shadow(0 0 16px rgba(167,243,208,1));
-    }
-    50% {
-      transform: rotate(180deg) scale(1.2);
-      filter: drop-shadow(0 0 20px rgba(255,255,255,1));
-    }
-    75% {
-      transform: rotate(270deg) scale(1.1);
-      filter: drop-shadow(0 0 16px rgba(167,243,208,1));
-    }
-  }
-  .optimize-btn-container {
-    position: relative;
-  }
-  .optimize-btn-container::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-    transition: left 0.6s ease-in-out;
-    pointer-events: none;
-    border-radius: 12px;
-  }
-  .optimize-btn-container:hover::before {
-    left: 100%;
-  }
-  .optimize-btn-container:hover .lightning-icon {
-    color: #ffffff;
-    filter: drop-shadow(0 0 12px rgba(255,255,255,0.8)) !important;
-  }
-  .optimize-btn-container:hover .btn-text {
-    text-shadow: 0 0 8px rgba(255,255,255,0.6);
-  }
-  .optimize-btn-container:hover {
-    transform: translateY(-3px) scale(1.02) !important;
-    background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%) !important;
-    box-shadow: 0 16px 48px rgba(16,185,129,0.4), 0 8px 24px rgba(16,185,129,0.3), inset 0 1px 0 rgba(255,255,255,0.3) !important;
-  }
-  .optimize-btn-container:active {
-    transform: translateY(-1px) scale(0.98) !important;
-    transition: all 0.1s ease !important;
-  }
-  .optimize-btn-container:disabled:hover {
-    transform: none !important;
-    background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%) !important;
-  }
-  .animate-fade-in { animation: fade-in 0.5s ease-out; }
-  .animate-slide-up { animation: slide-up 0.6s ease-out; }
-  .animate-fade-in-out { animation: fade-in-out 2s ease-in-out; }
-`}</style>
+      {isLeaveModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
+            <h3 className="text-lg font-bold text-gray-900">Leave Group?</h3>
+            <p className="text-sm text-gray-600">Are you sure you want to leave "{activeGroup.name}"? This action cannot be undone.</p>
+            {leaveError && <p className="text-red-600 text-sm">{leaveError}</p>}
+            <div className="flex space-x-2">
+              <button
+                onClick={handleLeaveGroup}
+                className="flex-1 bg-red-600 text-white py-2 rounded-md hover:bg-red-700"
+              >
+                Confirm Leave
+              </button>
+              <button
+                onClick={() => {
+                  setIsLeaveModalOpen(false);
+                  setLeaveError('');
+                }}
+                className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      <style>{`
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fade-in-out { 0% { opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes energyPulse {
+          0%, 100% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 8px rgba(167,243,208,0.6)); }
+          25% { transform: rotate(90deg) scale(1.1); filter: drop-shadow(0 0 16px rgba(167,243,208,1)); }
+          50% { transform: rotate(180deg) scale(1.2); filter: drop-shadow(0 0 20px rgba(255,255,255,1)); }
+          75% { transform: rotate(270deg) scale(1.1); filter: drop-shadow(0 0 16px rgba(167,243,208,1)); }
+        }
+        .optimize-btn-container {
+          position: relative;
+        }
+        .optimize-btn-container::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+          transition: left 0.6s ease-in-out;
+          pointer-events: none;
+          border-radius: 12px;
+        }
+        .optimize-btn-container:hover::before {
+          left: 100%;
+        }
+        .optimize-btn-container:hover .lightning-icon {
+          color: #ffffff;
+          filter: drop-shadow(0 0 12px rgba(255,255,255,0.8)) !important;
+        }
+        .optimize-btn-container:hover .btn-text {
+          text-shadow: 0 0 8px rgba(255,255,255,0.6);
+        }
+        .optimize-btn-container:hover {
+          transform: translateY(-3px) scale(1.02) !important;
+          background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%) !important;
+          box-shadow: 0 16px 48px rgba(16,185,129,0.4), 0 8px 24px rgba(16,185,129,0.3), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+        }
+        .optimize-btn-container:active {
+          transform: translateY(-1px) scale(0.98) !important;
+          transition: all 0.1s ease !important;
+        }
+        .optimize-btn-container:disabled:hover {
+          transform: none !important;
+          background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%) !important;
+        }
+        .animate-fade-in { animation: fade-in 0.5s ease-out; }
+        .animate-slide-up { animation: slide-up 0.6s ease-out; }
+        .animate-fade-in-out { animation: fade-in-out 3s ease-in-out; }
+      `}</style>
     </div>
   );
 }
