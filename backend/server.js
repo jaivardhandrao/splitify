@@ -6,7 +6,7 @@ const dotenv = require('dotenv');
 dotenv.config();  // Loads .env file
 
 const app = express();
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: [process.env.FRONTEND_URL, 'http://localhost:5173', 'https://splitify-backend-ymcm.onrender.com/'] }));
 app.use(express.json());  // Parses JSON bodies
 
 // Connect to MongoDB Atlas
