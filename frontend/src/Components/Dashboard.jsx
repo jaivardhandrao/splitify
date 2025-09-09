@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useMemo, createContext, useContext, useState, useEffect } from 'react'
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,20 +24,23 @@ function Dashboard() {
   const [notification, setNotification] = useState('');
   const [copyStatus, setCopyStatus] = useState('Copy ID');
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  
+  const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveError, setLeaveError] = useState(''); // For balance error
   const [isPressed, setIsPressed] = useState(false); // For button press effect
   const [expenseIsSettled, setExpenseIsSettled] = useState(false); // New state for settled status
+  const [updatingExpenses, setUpdatingExpenses] = useState({});
 
-  
 
-// OLD
-// const API_BASE = 'http://localhost:5666/api';
 
-// NEW
+  // OLD
+  // const API_BASE = 'http://localhost:5666/api';
 
-const APP_URL = 'https://splitify-pi.vercel.app/'
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
+  // NEW
+
+  const APP_URL = 'https://splitify-pi.vercel.app/'
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
 
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
@@ -139,6 +142,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
 
   const handleAddExpense = async (e) => {
     e.preventDefault();
+    setIsSubmittingExpense(true);
     if (!expenseTitle || !expenseAmount || expenseParticipants.length === 0) {
       setError('All fields required');
       return;
@@ -169,6 +173,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
     setExpenseAmount('');
     setExpensePaidBy(userEmail);
     setExpenseParticipants([]);
+    setIsSubmittingExpense(false);
   };
 
 
@@ -183,7 +188,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
     const shareData = {
       title: `Join ${activeGroup.name} on Splitify!`,
       text: `Hi! You're invited to join "${activeGroup.name}" on Splitify by ${userName}. Use Group ID: ${activeGroup._id} to join. Download the app or visit ${APP_URL} to get started!`,
-      url: `${APP_URL}/join?groupId=${activeGroup._id}`
+      url: `${APP_URL}/`
     };
 
     try {
@@ -219,7 +224,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
 
 
     expenses.forEach(expense => {
-      
+
       if (expense.splitType !== 'equal' || expense.isSettled === true) {
         // console.warn('Non-equal split not supported, skipping:', expense.title);
         return;
@@ -300,7 +305,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
       };
     });
 
-    console.log('Named Transactions:', namedTransactions);
+    // console.log('Named Transactions:', namedTransactions);
 
     setTimeout(() => {
 
@@ -378,7 +383,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
       </nav>
 
       <div className="flex flex-1 overflow-hidden relative">
-        {loading && <p className="text-center">Loading...</p>}
+        {/* {loading && <p className="text-center">Loading...</p>} */}
         {error && <p className="text-red-500 text-center">{error}</p>}
         <aside className={`bg-white border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-50 w-64 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:w-64`}>
           <div className="p-4 sm:p-6 h-full overflow-y-auto">
@@ -399,18 +404,58 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
             </nav>
             <div className="mt-8 pt-6 border-t border-gray-200">
               <h4 className="text-sm font-medium text-gray-500 mb-4">Your Groups</h4>
-              <ul className="space-y-2">
-                {groups.map((group) => (
-                  <li key={group._id}>
-                    <button onClick={() => { setActiveGroup(group); setIsSidebarOpen(false); }} className={`w-full text-left px-3 py-3 rounded-md transition-all duration-300 ease-in-out ${activeGroup?._id === group._id ? 'bg-emerald-100 text-emerald-700 font-medium border border-emerald-200' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-transparent'
-                      } transform hover:scale-[1.01] text-sm`}>
-                      <div className="font-medium truncate">{group.name}</div>
-                      <div className="text-xs text-gray-500">{group.members.length} members</div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+
+              {groups.length === 0 ? (
+                // Modern loading state
+                <div className="space-y-3">
+                  {/* Loading text with animated dots */}
+                  <div className="flex items-center justify-center py-6">
+                    <div className="text-center">
+                      <div className="inline-flex items-center space-x-2 text-gray-500 text-sm">
+                        <div className="w-4 h-4 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                        <span className="font-medium">Loading groups</span>
+                        <div className="flex space-x-1">
+                          <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                          <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                          <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Skeleton loading cards */}
+                  {[1, 2, 3].map((index) => (
+                    <div key={index} className="animate-pulse">
+                      <div className="w-full px-3 py-3 rounded-md bg-gray-100 border border-gray-200">
+                        <div className="space-y-2">
+                          <div className="h-4 bg-gray-200 rounded-md w-3/4"></div>
+                          <div className="h-3 bg-gray-200 rounded-md w-1/2"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                // Actual groups list
+                <ul className="space-y-2">
+                  {groups.map((group) => (
+                    <li key={group._id}>
+                      <button
+                        onClick={() => { setActiveGroup(group); setIsSidebarOpen(false); }}
+                        className={`w-full text-left px-3 py-3 rounded-md transition-all duration-300 ease-in-out ${activeGroup?._id === group._id
+                          ? 'bg-emerald-100 text-emerald-700 font-medium border border-emerald-200'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-transparent'
+                          } transform hover:scale-[1.01] text-sm`}
+                      >
+                        <div className="font-medium truncate">{group.name}</div>
+                        <div className="text-xs text-gray-500">{group.members.length} members</div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
+
           </div>
         </aside>
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto transition-all duration-300 w-full">
@@ -433,10 +478,34 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
                     </button>
                   </p>
                 </div>
-                <div className={`px-3 py-2 rounded-full text-sm font-semibold w-full sm:w-auto text-center ${balances[userEmail] > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  } transition-colors duration-300`}>
-                  Your Balance: ₹{balances[userEmail] || 0}
-                </div>
+                {/* floating button for adding expense */}
+                <button
+                  onClick={() => setIsAddExpenseModalOpen(true)}
+                  className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform hover:scale-110 shadow-lg hover:shadow-xl z-50 flex items-center justify-center group"
+                >
+                  <svg
+                    className="w-6 h-6 transition-transform duration-200 group-hover:rotate-90"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+
+                  {/* Tooltip */}
+                  <div className="absolute bottom-full right-0 mb-2 px-3 py-1 bg-gray-800 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                    Add New Expense
+                    <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-800"></div>
+                  </div>
+                </button>
+
+
               </div>
             </div>
           )}
@@ -457,112 +526,9 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
               </ul>
             </div>
           )}
-
-          {/* Expenses History */}
-          {/* <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
-            <div className="space-y-4 mb-6">
-              {expenses.map((expense) => {
-                const paidById = expense.paidBy?._id || expense.paidBy;
-                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
-                const paidByDisplay = paidByMember
-                  ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
-                  : (expense.paidBy?.name || 'Unknown');
-
-                const participantDisplays = expense.participants.map((participantObj) => {
-                  const participantId = participantObj?._id || participantObj;
-                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
-                  return participantMember
-                    ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
-                    : participantId;
-                }).join(', ');
-
-                return (
-                  <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
-                    <p className="font-medium text-gray-900">{expense.title}</p>
-                    <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
-                    <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
-                    <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
-                  </div>
-                );
-              })}
-            </div>
-            <button onClick={() => setIsAddExpenseModalOpen(true)} className="mt-6 w-full bg-emerald-600 text-white py-3 px-4 rounded-md font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform hover:scale-[1.02] shadow-sm hover:shadow-md">
-              Add New Expense
-            </button>
-          </div> */}
-
-          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
-            <div className="space-y-4 mb-6">
-              {expenses.map((expense) => {
-                const paidById = expense.paidBy?._id || expense.paidBy;
-                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
-                const paidByDisplay = paidByMember
-                  ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
-                  : (expense.paidBy?.name || 'Unknown');
-
-                const participantDisplays = expense.participants.map((participantObj) => {
-                  const participantId = participantObj?._id || participantObj;
-                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
-                  return participantMember
-                    ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
-                    : participantId;
-                }).join(', ');
-
-                // New: Handler to toggle isSettled
-                const handleToggleSettled = async () => {
-                  try {
-                    await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
-                      isSettled: !expense.isSettled
-                    }, { headers: { Authorization: `Bearer ${token}` } });
-                    showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
-                    // Refresh expenses to update the UI
-                    const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
-                    setExpenses(res.data.expenses);
-                    setBalances(res.data.balances);
-                    calculateOptimizedTransactions(res.data.balances);
-                  } catch (err) {
-                    setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
-                  }
-                };
-
-                return (
-                  <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
-                    <p className="font-medium text-gray-900">{expense.title}</p>
-                    <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
-                    <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
-                    <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
-                    {/* New: Settled/Unsettled Toggle */}
-                    <div className="mt-2 flex items-center">
-                      <input
-                        type="checkbox"
-                        id={`settled-${expense._id}`}
-                        checked={expense.isSettled || false}
-                        onChange={handleToggleSettled}
-                        className="h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 cursor-pointer transition-all duration-200"
-                      />
-                      <label
-                        htmlFor={`settled-${expense._id}`}
-                        className="ml-2 text-sm text-gray-700 font-medium hover:text-emerald-600 transition-colors"
-                      >
-                        {expense.isSettled ? 'Settled' : 'Unsettled'}
-                      </label>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <button onClick={() => setIsAddExpenseModalOpen(true)} className="mt-6 w-full bg-emerald-600 text-white py-3 px-4 rounded-md font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform hover:scale-[1.02] shadow-sm hover:shadow-md">
-              Add New Expense
-            </button>
-          </div>
-
-
-
-
           {/* Optimized Transactions */}
-          <div className="mt-8 bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
+
+          <div className="mt-8 my-8 bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                 <svg className="w-5 h-5 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -690,12 +656,111 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
               {optimizedTransactions.length === 0 && <p className="text-gray-500 text-center">All settled up!</p>}
             </div>
           </div>
+
+
+
+          {/* Expenses History */}
+
+          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
+            <div className="space-y-4 mb-6">
+
+              {expenses.map((expense) => {
+                const paidById = expense.paidBy?._id || expense.paidBy;
+                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
+                const paidByDisplay = paidByMember
+                  ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
+                  : (expense.paidBy?.name || 'Unknown');
+
+                const participantDisplays = expense.participants.map((participantObj) => {
+                  const participantId = participantObj?._id || participantObj;
+                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
+                  return participantMember
+                    ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
+                    : participantId;
+                }).join(', ');
+
+                // Get loading state for this specific expense (no hook call here)
+                const isUpdating = updatingExpenses[expense._id] || false;
+
+                // Handler to toggle isSettled with loading state
+                const handleToggleSettled = async () => {
+                  // Set loading state for this specific expense
+                  setUpdatingExpenses(prev => ({ ...prev, [expense._id]: true }));
+                  try {
+                    await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
+                      isSettled: !expense.isSettled
+                    }, { headers: { Authorization: `Bearer ${token}` } });
+                    showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
+                    // Refresh expenses to update the UI
+                    const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
+                    setExpenses(res.data.expenses);
+                    setBalances(res.data.balances);
+                    calculateOptimizedTransactions(res.data.balances);
+                  } catch (err) {
+                    setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
+                  } finally {
+                    // Remove loading state for this specific expense
+                    setUpdatingExpenses(prev => {
+                      const newState = { ...prev };
+                      delete newState[expense._id];
+                      return newState;
+                    });
+                  }
+                };
+
+                return (
+                  <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
+                    <p className="font-medium text-gray-900">{expense.title}</p>
+                    <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
+                    <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
+                    <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
+                    {/* Settled/Unsettled Toggle with Loader */}
+                    <div className="mt-2 flex items-center">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          id={`settled-${expense._id}`}
+                          checked={expense.isSettled || false}
+                          onChange={handleToggleSettled}
+                          disabled={isUpdating}
+                          className={`h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 transition-all duration-200 ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                            }`}
+                        />
+                        {isUpdating && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                          </div>
+                        )}
+                      </div>
+                      <label
+                        htmlFor={`settled-${expense._id}`}
+                        className={`ml-2 text-sm font-medium transition-colors ${isUpdating
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-gray-700 hover:text-emerald-600'
+                          }`}
+                      >
+                        {expense.isSettled ? 'Settled' : 'Unsettled'}
+                        {isUpdating && <span className="ml-1 text-xs">(updating...)</span>}
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {activeGroup &&
+              <button onClick={() => setIsAddExpenseModalOpen(true)} className="mt-6 w-full bg-emerald-600 text-white py-3 px-4 rounded-md font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform hover:scale-[1.02] shadow-sm hover:shadow-md">
+                Add New Expense
+              </button>
+            }
+
+          </div>
         </main>
       </div>
 
       {isAddExpenseModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full space-y-4 mx-4">
             <h3 className="text-lg font-bold text-gray-900">Add Expense</h3>
             <form onSubmit={handleAddExpense} className="space-y-4">
               <input
@@ -703,21 +768,24 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
                 value={expenseTitle}
                 onChange={(e) => setExpenseTitle(e.target.value)}
                 placeholder="Title (e.g., Dinner)"
-                className="w-full p-3 border rounded-md"
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 required
+                disabled={isSubmittingExpense}
               />
               <input
                 type="number"
                 value={expenseAmount}
                 onChange={(e) => setExpenseAmount(e.target.value)}
                 placeholder="Amount (e.g., 100)"
-                className="w-full p-3 border rounded-md"
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 required
+                disabled={isSubmittingExpense}
               />
               <select
                 value={expensePaidBy}
                 onChange={(e) => setExpensePaidBy(e.target.value)}
-                className="w-full p-3 border rounded-md"
+                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+                disabled={isSubmittingExpense}
               >
                 <option value="">Who Paid?</option>
                 {activeGroup.members.map((m) => (
@@ -726,21 +794,57 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api
               </select>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Participants:</label>
-                {activeGroup.members.map((m) => (
-                  <div key={m._id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={expenseParticipants.includes(m._id)}
-                      onChange={() => setExpenseParticipants(prev =>
-                        prev.includes(m._id) ? prev.filter(id => id !== m._id) : [...prev, m._id]
-                      )}
-                    />
-                    <span className="ml-2">{m.name || m.email}</span>
-                  </div>
-                ))}
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {activeGroup.members.map((m) => (
+                    <div key={m._id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`participant-${m._id}`}
+                        checked={expenseParticipants.includes(m._id)}
+                        onChange={() => setExpenseParticipants(prev =>
+                          prev.includes(m._id) ? prev.filter(id => id !== m._id) : [...prev, m._id]
+                        )}
+                        disabled={isSubmittingExpense}
+                        className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                      />
+                      <label htmlFor={`participant-${m._id}`} className="ml-2 text-sm text-gray-700">
+                        {m.name || m.email}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-md">Submit</button>
-              <button type="button" onClick={() => setIsAddExpenseModalOpen(false)} className="w-full bg-gray-300 text-gray-700 py-3 rounded-md mt-2">Cancel</button>
+
+              {/* Submit Button with Loader */}
+              <button
+                type="submit"
+                disabled={isSubmittingExpense}
+                className={`w-full py-3 rounded-md font-medium transition-all duration-200 ${isSubmittingExpense
+                    ? 'bg-emerald-400 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                  } text-white flex items-center justify-center space-x-2`}
+              >
+                {isSubmittingExpense ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Adding Expense...</span>
+                  </>
+                ) : (
+                  <span>Submit</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAddExpenseModalOpen(false)}
+                disabled={isSubmittingExpense}
+                className={`w-full py-3 rounded-md font-medium transition-all duration-200 ${isSubmittingExpense
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                  }`}
+              >
+                Cancel
+              </button>
             </form>
           </div>
         </div>
