@@ -391,6 +391,10 @@ function Dashboard() {
     setIsProfileDropdownOpen(false);
   };
 
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
 
@@ -470,6 +474,13 @@ function Dashboard() {
           <div
             className="fixed inset-0 z-40"
             onClick={closeProfileDropdown}
+          ></div>
+        )}
+
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 z-40"
+            onClick={closeSidebar}
           ></div>
         )}
       </nav>
