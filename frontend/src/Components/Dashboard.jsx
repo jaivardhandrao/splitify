@@ -217,7 +217,7 @@ function Dashboard() {
       console.log('Share failed:', err);
     }
 
-    setIsShareModalOpen(true);
+    // setIsShareModalOpen(true);
   };
 
   const calculateOptimizedTransactions = (currentBalances) => {  // Ignore param, use expenses
