@@ -33,6 +33,8 @@ function Dashboard() {
   const [processingRequestId, setProcessingRequestId] = useState(null);
   const [processingAction, setProcessingAction] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+
 
 
 
@@ -379,6 +381,16 @@ function Dashboard() {
     }
   };
 
+  // Add this function to toggle dropdown
+  const toggleProfileDropdown = () => {
+    setIsProfileDropdownOpen(!isProfileDropdownOpen);
+  };
+
+  // Add this function to close dropdown when clicking outside
+  const closeProfileDropdown = () => {
+    setIsProfileDropdownOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
 
@@ -391,9 +403,6 @@ function Dashboard() {
         </div>
       )}
 
-
-
-
       <nav className="bg-white shadow-lg border-b border-gray-200 px-4 py-4">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
           <div className="flex items-center space-x-2 flex-1">
@@ -405,24 +414,67 @@ function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="relative flex-shrink-0 group">
-            <button className="flex items-center space-x-2 bg-emerald-100 hover:bg-emerald-200 px-3 py-2 rounded-md transition-all duration-300 ease-in-out transform hover:scale-105">
+          <div className="relative flex-shrink-0">
+            <button
+              onClick={toggleProfileDropdown}
+              className="flex items-center space-x-2 bg-emerald-100 hover:bg-emerald-200 px-3 py-2 rounded-md transition-all duration-300 ease-in-out transform"
+            >
               <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center">
                 <span className="text-white text-sm font-semibold">{userEmail.charAt(0).toUpperCase() || 'U'}</span>
               </div>
               <span className="text-sm font-medium text-gray-700 hidden md:inline">{userName}</span>
-              <svg className="w-4 h-4 text-gray-500 transition-transform duration-300 hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className={`w-4 h-4 text-gray-500 transition-transform duration-300 hidden md:block ${isProfileDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 ease-in-out">
-              <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200">Profile</a>
-              <a href="#" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200">Settings</a>
-              <button onClick={handleLogout} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 transition-colors duration-200">Logout</button>
+
+            {/* Dropdown menu - now controlled by state for mobile compatibility */}
+            <div className={`absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 transition-all duration-300 ease-in-out ${isProfileDropdownOpen
+                ? 'opacity-100 visible transform translate-y-0'
+                : 'opacity-0 invisible transform -translate-y-2'
+              }`}>
+              <a
+                href="#"
+                onClick={closeProfileDropdown}
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+              >
+                Profile
+              </a>
+              <a
+                href="#"
+                onClick={closeProfileDropdown}
+                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+              >
+                Settings
+              </a>
+              <button
+                onClick={() => {
+                  handleLogout();
+                  closeProfileDropdown();
+                }}
+                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 transition-colors duration-200"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Invisible overlay to close dropdown when clicking outside (mobile) */}
+        {isProfileDropdownOpen && (
+          <div
+            className="fixed inset-0 z-40"
+            onClick={closeProfileDropdown}
+          ></div>
+        )}
       </nav>
+
+
 
       <div className="flex flex-1 overflow-hidden relative">
         <aside className={`bg-white border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-50 w-64 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:w-64`}>
