@@ -24,13 +24,15 @@ function Dashboard() {
   const [notification, setNotification] = useState('');
   const [copyStatus, setCopyStatus] = useState('Copy ID');
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveError, setLeaveError] = useState(''); // For balance error
   const [isPressed, setIsPressed] = useState(false); // For button press effect
   const [expenseIsSettled, setExpenseIsSettled] = useState(false); // New state for settled status
   const [updatingExpenses, setUpdatingExpenses] = useState({});
+  const [processingRequestId, setProcessingRequestId] = useState(null);
+  const [processingAction, setProcessingAction] = useState(null);
+  const [copied, setCopied] = useState(false);
 
 
 
@@ -38,6 +40,13 @@ function Dashboard() {
   // const API_BASE = 'http://localhost:5666/api';
 
   // NEW
+
+  // log the error instead of showing it to the ui
+
+  useEffect(() => {
+    console.log('Error:', error);
+  }, [error])
+
 
   const APP_URL = 'https://splitify-pi.vercel.app/'
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
@@ -99,12 +108,20 @@ function Dashboard() {
   }, [activeGroup, token]);
 
   const handleApproveReject = async (requestId, action) => {
+
+    setProcessingRequestId(requestId);
+    setProcessingAction(action); // for loader
+
     try {
       await axios.post(`${API_BASE}/groups/${activeGroup._id}/respond`, { requestId, action }, { headers: { Authorization: `Bearer ${token}` } });
       setJoinRequests(joinRequests.filter(req => req._id !== requestId));
       showNotification(`Request ${action}ed!`);
+      setProcessingRequestId(null);
+      setProcessingAction(null);
     } catch (err) {
       setError('Failed to process request: ' + err.message);
+      setProcessingAction(null);
+      setProcessingRequestId(null);
     }
   };
 
@@ -175,7 +192,6 @@ function Dashboard() {
     setExpenseParticipants([]);
     setIsSubmittingExpense(false);
   };
-
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -341,8 +357,31 @@ function Dashboard() {
     }
   };
 
+  const handleCopyGroupId = async () => {
+    try {
+      await navigator.clipboard.writeText(activeGroup._id);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    } catch (err) {
+      // Fallback for browsers that don't support clipboard API
+      const textArea = document.createElement('textarea');
+      textArea.value = activeGroup._id;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+
       {notification && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-100 border border-green-200 text-green-700 px-4 py-2 rounded-md shadow-md flex items-center space-x-2 z-50 animate-fade-in-out">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -351,6 +390,9 @@ function Dashboard() {
           <p>{notification}</p>
         </div>
       )}
+
+
+
 
       <nav className="bg-white shadow-lg border-b border-gray-200 px-4 py-4">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
@@ -383,8 +425,6 @@ function Dashboard() {
       </nav>
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* {loading && <p className="text-center">Loading...</p>} */}
-        {error && <p className="text-red-500 text-center">{error}</p>}
         <aside className={`bg-white border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-50 w-64 lg:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:relative lg:w-64`}>
           <div className="p-4 sm:p-6 h-full overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">Groups</h3>
@@ -459,24 +499,45 @@ function Dashboard() {
           </div>
         </aside>
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto transition-all duration-300 w-full">
+
           {activeGroup && (
             <div className="mb-6 sm:mb-8 animate-fade-in">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
                 <div className="w-full sm:w-auto mb-4 sm:mb-0">
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{activeGroup.name}</h2>
                   <p className="text-sm text-gray-600 mt-1 break-words">Members: {activeGroup.members.map(m => m.name || m.email).join(', ')}</p>
-                  <p className="text-sm text-gray-600 mt-1 flex items-center">
-                    Group ID: {activeGroup._id} (Share to invite)
-                    <button onClick={handleShareGroupId} className="ml-2 text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors">
-                      Share ID
+                  <div className="text-sm text-gray-600 mt-1 flex items-center flex-wrap gap-2">
+                    <span>Group ID: {activeGroup._id} (Share to invite)</span>
+                    <button
+                      onClick={handleCopyGroupId}
+                      className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-md transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                    >
+                      {copied ? (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-green-600">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          <span>Copy ID</span>
+                        </>
+                      )}
                     </button>
                     <button
-                      onClick={() => setIsLeaveModalOpen(true)}
-                      className="ml-2 text-red-600 hover:text-red-500 text-sm font-medium transition-colors"
+                      onClick={handleShareGroupId}
+                      className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-md transition-all duration-200 border border-blue-200 hover:border-blue-300"
                     >
-                      Leave Group
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                      </svg>
+                      <span>Share ID</span>
                     </button>
-                  </p>
+                  </div>
                 </div>
                 {/* floating button for adding expense */}
                 <button
@@ -504,11 +565,10 @@ function Dashboard() {
                     <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-800"></div>
                   </div>
                 </button>
-
-
               </div>
             </div>
           )}
+
           {activeGroup && joinRequests.length > 0 && (
             <div className="mb-6 bg-white p-4 rounded-lg shadow-md border border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Pending Join Requests</h3>
@@ -517,9 +577,51 @@ function Dashboard() {
                   <li key={req._id} className="p-4 bg-gray-50 rounded-lg shadow-md border border-gray-200">
                     <p className="font-medium">{req.user.name} ({req.user.email})</p>
                     <p className="text-sm text-gray-600">Phone: {req.user.phone}</p>
-                    <div className="mt-2">
-                      <button onClick={() => handleApproveReject(req._id, 'accept')} className="mr-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700">Approve</button>
-                      <button onClick={() => handleApproveReject(req._id, 'decline')} className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700">Reject</button>
+                    <div className="mt-2 flex items-center">
+                      <button
+                        onClick={() => handleApproveReject(req._id, 'accept')}
+                        disabled={processingRequestId === req._id}
+                        className={`mr-2 px-3 py-1 rounded flex items-center transition-all duration-300 ${processingRequestId === req._id && processingAction === 'decline'
+                          ? 'opacity-30 bg-gray-300 text-gray-500'
+                          : processingRequestId === req._id && processingAction === 'accept'
+                            ? 'bg-green-600 text-white cursor-not-allowed'
+                            : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                      >
+                        {processingRequestId === req._id && processingAction === 'accept' ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Processing...
+                          </>
+                        ) : (
+                          'Approve'
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleApproveReject(req._id, 'decline')}
+                        disabled={processingRequestId === req._id}
+                        className={`px-3 py-1 rounded flex items-center transition-all duration-300 ${processingRequestId === req._id && processingAction === 'accept'
+                          ? 'opacity-30 bg-gray-300 text-gray-500'
+                          : processingRequestId === req._id && processingAction === 'decline'
+                            ? 'bg-red-600 text-white cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700'
+                          }`}
+                      >
+                        {processingRequestId === req._id && processingAction === 'decline' ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Processing...
+                          </>
+                        ) : (
+                          'Reject'
+                        )}
+                      </button>
                     </div>
                   </li>
                 ))}
@@ -528,7 +630,7 @@ function Dashboard() {
           )}
           {/* Optimized Transactions */}
 
-          <div className="mt-8 my-8 bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
+          <div className="mt-8 my-5 bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                 <svg className="w-5 h-5 mr-2 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -661,100 +763,138 @@ function Dashboard() {
 
           {/* Expenses History */}
 
-          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
+          {/* Add expense button stays at bottom */}
+          {activeGroup && (
+            <button
+              onClick={() => setIsAddExpenseModalOpen(true)}
+              className="group relative w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-out transform hover:scale-[1.02] hover:from-emerald-600 hover:to-emerald-700 active:scale-[0.98] border border-emerald-400/20 overflow-hidden"
+            >
+              {/* Subtle animated background gradient */}
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"></div>
+
+              {/* Content */}
+              <div className="relative flex items-center justify-center space-x-2">
+                <svg
+                  className="w-6 h-6 transition-transform group-hover:rotate-180 duration-300"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span className="relative">Add New Expense</span>
+              </div>
+
+              {/* Bottom highlight */}
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-300/0 via-emerald-300/80 to-emerald-300/0 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out"></div>
+            </button>
+          )}
+
+
+          <div className="bg-white my-5 rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
-            <div className="space-y-4 mb-6">
 
-              {expenses.map((expense) => {
-                const paidById = expense.paidBy?._id || expense.paidBy;
-                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
-                const paidByDisplay = paidByMember
-                  ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
-                  : (expense.paidBy?.name || 'Unknown');
+            {/* Scrollable container with fixed height */}
+            <div className="max-h-150 overflow-y-auto mb-6 pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+              <div className="space-y-4">
+                {/* Sort expenses by date/createdAt in descending order (most recent first) */}
+                {expenses
+                  .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))
+                  .map((expense) => {
+                    const paidById = expense.paidBy?._id || expense.paidBy;
+                    const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
+                    const paidByDisplay = paidByMember
+                      ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
+                      : (expense.paidBy?.name || 'Unknown');
 
-                const participantDisplays = expense.participants.map((participantObj) => {
-                  const participantId = participantObj?._id || participantObj;
-                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
-                  return participantMember
-                    ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
-                    : participantId;
-                }).join(', ');
+                    const participantDisplays = expense.participants.map((participantObj) => {
+                      const participantId = participantObj?._id || participantObj;
+                      const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
+                      return participantMember
+                        ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
+                        : participantId;
+                    }).join(', ');
 
-                // Get loading state for this specific expense (no hook call here)
-                const isUpdating = updatingExpenses[expense._id] || false;
+                    // Get loading state for this specific expense (no hook call here)
+                    const isUpdating = updatingExpenses[expense._id] || false;
 
-                // Handler to toggle isSettled with loading state
-                const handleToggleSettled = async () => {
-                  // Set loading state for this specific expense
-                  setUpdatingExpenses(prev => ({ ...prev, [expense._id]: true }));
-                  try {
-                    await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
-                      isSettled: !expense.isSettled
-                    }, { headers: { Authorization: `Bearer ${token}` } });
-                    showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
-                    // Refresh expenses to update the UI
-                    const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
-                    setExpenses(res.data.expenses);
-                    setBalances(res.data.balances);
-                    calculateOptimizedTransactions(res.data.balances);
-                  } catch (err) {
-                    setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
-                  } finally {
-                    // Remove loading state for this specific expense
-                    setUpdatingExpenses(prev => {
-                      const newState = { ...prev };
-                      delete newState[expense._id];
-                      return newState;
-                    });
-                  }
-                };
+                    // Handler to toggle isSettled with loading state
+                    const handleToggleSettled = async () => {
+                      // Set loading state for this specific expense
+                      setUpdatingExpenses(prev => ({ ...prev, [expense._id]: true }));
+                      try {
+                        await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
+                          isSettled: !expense.isSettled
+                        }, { headers: { Authorization: `Bearer ${token}` } });
+                        showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
+                        // Refresh expenses to update the UI
+                        const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
+                        setExpenses(res.data.expenses);
+                        setBalances(res.data.balances);
+                        calculateOptimizedTransactions(res.data.balances);
+                      } catch (err) {
+                        setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
+                      } finally {
+                        // Remove loading state for this specific expense
+                        setUpdatingExpenses(prev => {
+                          const newState = { ...prev };
+                          delete newState[expense._id];
+                          return newState;
+                        });
+                      }
+                    };
 
-                return (
-                  <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
-                    <p className="font-medium text-gray-900">{expense.title}</p>
-                    <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
-                    <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
-                    <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
-                    {/* Settled/Unsettled Toggle with Loader */}
-                    <div className="mt-2 flex items-center">
-                      <div className="relative">
-                        <input
-                          type="checkbox"
-                          id={`settled-${expense._id}`}
-                          checked={expense.isSettled || false}
-                          onChange={handleToggleSettled}
-                          disabled={isUpdating}
-                          className={`h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 transition-all duration-200 ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                            }`}
-                        />
-                        {isUpdating && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                    return (
+                      <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <p className="font-medium text-gray-900">{expense.title}</p>
+                          {/* Optional: Add date display */}
+                          <span className="text-xs text-gray-500">
+                            {new Date(expense.createdAt || expense.date).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
+                        <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
+                        <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
+                        {/* Settled/Unsettled Toggle with Loader */}
+                        <div className="mt-2 flex items-center">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              id={`settled-${expense._id}`}
+                              checked={expense.isSettled || false}
+                              onChange={handleToggleSettled}
+                              disabled={isUpdating}
+                              className={`h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 transition-all duration-200 ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                }`}
+                            />
+                            {isUpdating && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                              </div>
+                            )}
                           </div>
-                        )}
+                          <label
+                            htmlFor={`settled-${expense._id}`}
+                            className={`ml-2 text-sm font-medium transition-colors ${isUpdating
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-gray-700 hover:text-emerald-600'
+                              }`}
+                          >
+                            {expense.isSettled ? 'Settled' : 'Unsettled'}
+                            {isUpdating && <span className="ml-1 text-xs">(updating...)</span>}
+                          </label>
+                        </div>
                       </div>
-                      <label
-                        htmlFor={`settled-${expense._id}`}
-                        className={`ml-2 text-sm font-medium transition-colors ${isUpdating
-                          ? 'text-gray-400 cursor-not-allowed'
-                          : 'text-gray-700 hover:text-emerald-600'
-                          }`}
-                      >
-                        {expense.isSettled ? 'Settled' : 'Unsettled'}
-                        {isUpdating && <span className="ml-1 text-xs">(updating...)</span>}
-                      </label>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+              </div>
             </div>
-            {activeGroup &&
-              <button onClick={() => setIsAddExpenseModalOpen(true)} className="mt-6 w-full bg-emerald-600 text-white py-3 px-4 rounded-md font-medium hover:bg-emerald-700 transition-all duration-300 ease-in-out transform hover:scale-[1.02] shadow-sm hover:shadow-md">
-                Add New Expense
-              </button>
-            }
 
           </div>
+
+
+
         </main>
       </div>
 
@@ -820,8 +960,8 @@ function Dashboard() {
                 type="submit"
                 disabled={isSubmittingExpense}
                 className={`w-full py-3 rounded-md font-medium transition-all duration-200 ${isSubmittingExpense
-                    ? 'bg-emerald-400 cursor-not-allowed'
-                    : 'bg-emerald-600 hover:bg-emerald-700'
+                  ? 'bg-emerald-400 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
                   } text-white flex items-center justify-center space-x-2`}
               >
                 {isSubmittingExpense ? (
@@ -839,8 +979,8 @@ function Dashboard() {
                 onClick={() => setIsAddExpenseModalOpen(false)}
                 disabled={isSubmittingExpense}
                 className={`w-full py-3 rounded-md font-medium transition-all duration-200 ${isSubmittingExpense
-                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-300 text-gray-700 hover:bg-gray-400'
                   }`}
               >
                 Cancel
