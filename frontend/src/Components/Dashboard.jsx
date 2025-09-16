@@ -37,7 +37,7 @@ function Dashboard() {
   const [isExpenseHistoryLoading, setIsExpenseHistoryLoading] = useState(false);
 
 
-  
+
   // OLD
   // const API_BASE = 'http://localhost:5666/api';
 
@@ -237,6 +237,244 @@ function Dashboard() {
   }, [activeGroup]);
 
 
+  //---------------------------------------------------------------------------------------------------------------------
+  const EPS = 0.01;
+
+  function addEdge(map, from, to, amt) {
+    if (amt <= EPS) return;
+    if (!map.has(from)) map.set(from, new Map());
+    const row = map.get(from);
+    row.set(to, (row.get(to) || 0) + amt);
+  }
+
+  function deleteEdge(map, from, to) {
+    const row = map.get(from);
+    if (!row) return;
+    row.delete(to);
+    if (row.size === 0) map.delete(from);
+  }
+
+  // Net opposite edges for each unordered pair (A->B vs B->A)
+  function netOpposites(graph) {
+    const seen = new Set();
+    for (const [u, row] of Array.from(graph.entries())) {
+      for (const v of Array.from(row.keys())) {
+        const key = u < v ? `${u}|${v}` : `${v}|${u}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const a = graph.get(u)?.get(v) || 0;
+        const b = graph.get(v)?.get(u) || 0;
+        if (a > 0 && b > 0) {
+          if (a > b + EPS) {
+            // keep u->v of (a-b)
+            graph.get(u).set(v, a - b);
+            deleteEdge(graph, v, u);
+          } else if (b > a + EPS) {
+            graph.get(v).set(u, b - a);
+            deleteEdge(graph, u, v);
+          } else {
+            // equal: remove both
+            deleteEdge(graph, u, v);
+            deleteEdge(graph, v, u);
+          }
+        }
+      }
+    }
+  }
+
+  // Find any directed cycle and cancel it by the min-capacity on that cycle.
+  // Returns true if a cycle was found+cancelled.
+  function findAndCancelCycle(graph) {
+    const color = new Map(); // 0=unseen,1=visiting,2=done
+    const stack = [];
+
+    function dfs(u) {
+      color.set(u, 1);
+      stack.push(u);
+
+      const row = graph.get(u);
+      if (row) {
+        for (const v of row.keys()) {
+          if (!color.get(v)) {
+            const found = dfs(v);
+            if (found) return true;
+          } else if (color.get(v) === 1) {
+            // found a cycle: slice stack from indexOf(v) to end, then append v to close
+            const idx = stack.indexOf(v);
+            const cycle = stack.slice(idx).concat(v); // e.g. [v,...,u,v]
+            // compute min edge on cycle
+            let minEdge = Infinity;
+            for (let i = 0; i < cycle.length - 1; ++i) {
+              const a = cycle[i], b = cycle[i + 1];
+              const w = graph.get(a)?.get(b) || 0;
+              minEdge = Math.min(minEdge, w);
+            }
+            if (minEdge === Infinity || minEdge <= EPS) return false;
+            // subtract minEdge from each edge in cycle and delete zero edges
+            for (let i = 0; i < cycle.length - 1; ++i) {
+              const a = cycle[i], b = cycle[i + 1];
+              const cur = graph.get(a).get(b);
+              const next = cur - minEdge;
+              if (next <= EPS) deleteEdge(graph, a, b);
+              else graph.get(a).set(b, next);
+            }
+            return true; // we cancelled one cycle; stop this DFS pass
+          }
+        }
+      }
+
+      stack.pop();
+      color.set(u, 2);
+      return false;
+    }
+
+    // run DFS from each node until a cycle is found and cancelled
+    for (const node of Array.from(new Set([
+      ...Array.from(graph.keys()),
+      ...Array.from(graph.values()).flatMap(m => Array.from(m.keys()))
+    ]))) {
+      if (!color.get(node)) {
+        const cancelled = dfs(node);
+        if (cancelled) return true;
+      }
+    }
+    return false;
+  }
+
+  // Convert Map-based graph -> array of transactions
+  function graphToTxs(graph) {
+    const txs = [];
+    for (const [from, row] of graph.entries()) {
+      for (const [to, amt] of row.entries()) {
+        if (amt > EPS) txs.push({ from, to, amount: amt });
+      }
+    }
+    return txs;
+  }
+
+  // Greedy match two lists (debtors and creditors) to produce minimal new edges
+  function settleByNetBalances(balances) {
+    const debtors = []; // {userId, amount} positive = owes
+    const creditors = []; // {userId, amount} positive = is owed
+    for (const [id, bal] of Object.entries(balances)) {
+      if (bal < -EPS) debtors.push({ userId: id, amount: Math.abs(bal) });
+      else if (bal > EPS) creditors.push({ userId: id, amount: bal });
+    }
+    debtors.sort((a, b) => b.amount - a.amount);
+    creditors.sort((a, b) => b.amount - a.amount);
+
+    const txs = [];
+    let di = 0, ci = 0;
+    while (di < debtors.length && ci < creditors.length) {
+      const d = debtors[di], c = creditors[ci];
+      const pay = Math.min(d.amount, c.amount);
+      txs.push({ from: d.userId, to: c.userId, amount: pay, created: true });
+      d.amount -= pay; c.amount -= pay;
+      if (d.amount <= EPS) di++;
+      if (c.amount <= EPS) ci++;
+    }
+    return txs;
+  }
+
+  /**
+   * Main function (mode: 'preserve' | 'optimal' | 'hybrid')
+   */
+  function calculateOptimizedTransactions2(mode = 'optimal') {
+    if (!activeGroup || !activeGroup.members || !expenses?.length) {
+      setOptimizedTransactions([]);
+      setIsCalculating(false);
+      return;
+    }
+    setIsCalculating(true);
+
+    // 1) Build pairwise flows from expenses: participant -> paidBy
+    const graph = new Map();
+    for (const exp of expenses) {
+      if (exp.splitType !== 'equal' || exp.isSettled) continue;
+      const n = (exp.participants && Array.isArray(exp.participants)) ? exp.participants.length : 1;
+      const share = (exp.amount || 0) / Math.max(1, n);
+      const paidById = exp.paidBy?._id?.toString() || exp.paidBy;
+      if (!exp.participants || !Array.isArray(exp.participants)) continue;
+      for (const p of exp.participants) {
+        const pId = p?._id?.toString() || p;
+        if (!pId || pId === paidById) continue;
+        addEdge(graph, pId, paidById, share); // participant owes paidBy
+      }
+    }
+
+    // 2) Net opposite flows on same pair
+    netOpposites(graph);
+
+    // 3) Cancel directed cycles while possible (only affects existing edges)
+    // Keep cancelling cycles until none found
+    let iter = 0;
+    while (findAndCancelCycle(graph)) {
+      iter++;
+      if (iter > 1000) break; // safety (should terminate well before)
+    }
+
+    // 4) If preserve-only mode: emit remaining edges
+    let transactions = graphToTxs(graph).map(t => ({ ...t, created: false }));
+
+    if (mode === 'optimal') {
+      // Build per-user net balances from original expenses (ignore graph constraint)
+      const balances = {};
+      activeGroup.members.forEach(m => balances[m._id.toString()] = 0);
+      for (const exp of expenses) {
+        if (exp.splitType !== 'equal' || exp.isSettled) continue;
+        const n = (exp.participants && Array.isArray(exp.participants)) ? exp.participants.length : 1;
+        const share = (exp.amount || 0) / Math.max(1, n);
+        const paidById = exp.paidBy?._id?.toString() || exp.paidBy;
+        if (paidById && balances[paidById] !== undefined) balances[paidById] += exp.amount;
+        if (exp.participants && Array.isArray(exp.participants)) {
+          for (const p of exp.participants) {
+            const pId = p?._id?.toString() || p;
+            if (pId && balances[pId] !== undefined) balances[pId] -= share;
+          }
+        }
+      }
+      // Greedy settle based on net balances (may create new edges)
+      const createdTxs = settleByNetBalances(balances);
+      transactions = createdTxs.map(t => ({ ...t })); // created: true already
+    } else if (mode === 'hybrid') {
+      // Hybrid: we've already cancelled cycles and preserved original edges.
+      // Compute residual per-user nets from remaining graph and create new edges only as needed.
+      // Residual balances: incoming - outgoing on the remaining graph.
+      const balances = {};
+      activeGroup.members.forEach(m => balances[m._id.toString()] = 0);
+      for (const [from, row] of graph.entries()) {
+        for (const [to, amt] of row.entries()) {
+          // from owes -> outgoing, reduce their balance; to receives -> increase
+          balances[from] -= amt;
+          balances[to] += amt;
+        }
+      }
+
+      const extra = settleByNetBalances(balances); // these are "created: true"
+      // Append to transactions as last resort
+      transactions = transactions.concat(extra);
+    }
+
+    // Map ids to names/emails for display
+    const namedTransactions = transactions.map(tx => {
+      const fromMember = activeGroup.members.find(m => m._id.toString() === tx.from);
+      const toMember = activeGroup.members.find(m => m._id.toString() === tx.to);
+      return {
+        from: fromMember ? (fromMember.email === userEmail ? 'You' : (fromMember.name || fromMember.email)) : tx.from,
+        to: toMember ? (toMember.email === userEmail ? 'You' : (toMember.name || toMember.email)) : tx.to,
+        amount: Math.round((tx.amount + 1e-9) * 100) / 100, // round to 2 decimals
+        created: !!tx.created
+      };
+    });
+
+    // Small delay kept for UX parity if you want (optional)
+    setTimeout(() => {
+      setOptimizedTransactions(namedTransactions);
+      setIsCalculating(false);
+    }, 200);
+  }
+//------------------------------------------------------------------------------------------
+
   const calculateOptimizedTransactions = (currentBalances) => {  // Ignore param, use expenses
     // console.log('Expenses for calculation:', expenses);  
 
@@ -313,7 +551,12 @@ function Dashboard() {
 
   const handleRecalculateClick = () => {
     if (!isCalculating && activeGroup) {
-      calculateOptimizedTransactions(balances);
+      calculateOptimizedTransactions2('optimal'); // preserve , optimal , hybrid
+      // calculateOptimizedTransactions2('preserve'); // preserve , optimal , hybrid
+      // calculateOptimizedTransactions2('hybrid'); // preserve , optimal , hybrid
+      // DO NOT USE HYBRID IT IS IN PIPELINE
+
+      // calculateOptimizedTransactions(balances);
     }
   };
 
@@ -895,7 +1138,7 @@ function Dashboard() {
                           const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
                           setExpenses(res.data.expenses);
                           setBalances(res.data.balances);
-                          calculateOptimizedTransactions(res.data.balances);
+                          // calculateOptimizedTransactions(res.data.balances);
                         } catch (err) {
                           setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
                         } finally {
@@ -940,8 +1183,8 @@ function Dashboard() {
                             <label
                               htmlFor={`settled-${expense._id}`}
                               className={`ml-2 text-sm font-medium transition-colors ${isUpdating
-                                  ? 'text-gray-400 cursor-not-allowed'
-                                  : 'text-gray-700 hover:text-emerald-600'
+                                ? 'text-gray-400 cursor-not-allowed'
+                                : 'text-gray-700 hover:text-emerald-600'
                                 }`}
                             >
                               {expense.isSettled ? 'Settled' : 'Unsettled'}
