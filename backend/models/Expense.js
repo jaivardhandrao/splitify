@@ -11,4 +11,4 @@ const expenseSchema = new mongoose.Schema({
   isSettled: { type: Boolean, default: false }, // New field with default unset
 }, { timestamps: true });
 
-module.exports = mongoose.model('Expense', expenseSchema);
+module.exports = mongoose.model('Expense', expenseSchema); 

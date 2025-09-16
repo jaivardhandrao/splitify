@@ -34,10 +34,10 @@ function Dashboard() {
   const [processingAction, setProcessingAction] = useState(null);
   const [copied, setCopied] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isExpenseHistoryLoading, setIsExpenseHistoryLoading] = useState(false);
 
 
-
-
+  
   // OLD
   // const API_BASE = 'http://localhost:5666/api';
 
@@ -87,13 +87,19 @@ function Dashboard() {
   useEffect(() => {
     if (activeGroup && token) {
       setLoading(true);
+      setIsExpenseHistoryLoading(true); // Start expense history loading
+
       axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } })
         .then(res => {
           setExpenses(res.data.expenses);
           setBalances(res.data.balances);
-          calculateOptimizedTransactions(res.data.balances);
+          // calculateOptimizedTransactions(res.data.balances);
+          setIsExpenseHistoryLoading(false); // Stop expense history loading on success
         })
-        .catch(err => setError('Failed to load expenses: ' + err.message));
+        .catch(err => {
+          setError('Failed to load expenses: ' + err.message);
+          setIsExpenseHistoryLoading(false); // Stop expense history loading on error
+        });
 
       axios.get(`${API_BASE}/groups/${activeGroup._id}/requests`, { headers: { Authorization: `Bearer ${token}` } })
         .then(res => setJoinRequests(res.data))
@@ -104,7 +110,6 @@ function Dashboard() {
             setError('Failed to load requests: ' + err.message);
           }
         });
-
       setLoading(false);
     }
   }, [activeGroup, token]);
@@ -182,7 +187,7 @@ function Dashboard() {
         .then(res => {
           setExpenses(res.data.expenses);
           setBalances(res.data.balances);
-          calculateOptimizedTransactions(res.data.balances);
+          // calculateOptimizedTransactions(res.data.balances);
         });
     } catch (err) {
       setError('Failed to add expense: ' + (err.response?.data?.error || err.message));
@@ -222,8 +227,19 @@ function Dashboard() {
     // setIsShareModalOpen(true);
   };
 
+
+  useEffect(() => {
+
+    setOptimizedTransactions([]);
+
+    setIsExpenseHistoryLoading(true); // Start loading when group changes
+
+  }, [activeGroup]);
+
+
   const calculateOptimizedTransactions = (currentBalances) => {  // Ignore param, use expenses
-    // console.log('Expenses for calculation:', expenses);  // Your log
+    // console.log('Expenses for calculation:', expenses);  
+
     if (!activeGroup || !activeGroup.members || expenses.length === 0) {
       // console.log('No group, members, or expenses, returning empty');
       setOptimizedTransactions([]);
@@ -233,86 +249,50 @@ function Dashboard() {
 
     setIsCalculating(true);
 
-    // Step 1: Brute force compute balances from expenses (loop through all)
-    const balances = {};
-    activeGroup.members.forEach(member => {
-      balances[member._id.toString()] = 0;  // Initialize for all members
-    });
-
-
-
+    // Step A: Build pairwise flows from the raw expenses (participant -> paidBy)
+    const pairFlows = {}; // { fromId: { toId: amount, ... }, ... }
     expenses.forEach(expense => {
+      if (expense.splitType !== 'equal' || expense.isSettled) return;
+      const share = expense.amount / (expense.participants?.length || 1);
+      const paidById = expense.paidBy?._id?.toString() || expense.paidBy;
+      if (!expense.participants || !Array.isArray(expense.participants)) return;
 
-      if (expense.splitType !== 'equal' || expense.isSettled === true) {
-        // console.warn('Non-equal split not supported, skipping:', expense.title);
-        return;
-      }
-      const share = expense.amount / (expense.participants ? expense.participants.length : 1);
-      const paidById = expense.paidBy?._id?.toString() || expense.paidBy;  // Handle populated object or string
-
-      // Credit full amount to paidBy
-      if (paidById && balances[paidById] !== undefined) {
-        balances[paidById] += expense.amount;
-      }
-
-      // Deduct share from all participants (brute loop)
-      if (expense.participants && Array.isArray(expense.participants)) {
-        expense.participants.forEach(participantObj => {
-          const pId = participantObj?._id?.toString() || participantObj;  // Handle object or string
-          if (pId && balances[pId] !== undefined) {
-            balances[pId] -= share;
-          }
-        });
-      }
-    });
-
-    // console.log('Computed Balances from Expenses:', balances);
-
-    // Step 2: Separate debtors (negative, owe money) and creditors (positive, owed)
-    const debtors = [];
-    const creditors = [];
-    Object.entries(balances).forEach(([userId, amount]) => {
-      if (amount < -0.01) {  // Epsilon for negatives
-        debtors.push({ userId, amount: Math.abs(amount) });  // Positive debt amount
-      } else if (amount > 0.01) {  // Epsilon for positives
-        creditors.push({ userId, amount });
-      }
-    });
-
-    // console.log('Debtors:', debtors);
-    // console.log('Creditors:', creditors);
-
-    // Step 3: Brute force settlement - Simple loop through all pairs (greedy-like for min tx)
-    const transactions = [];
-    // Sort descending for efficiency (largest first)
-    debtors.sort((a, b) => b.amount - a.amount);
-    creditors.sort((a, b) => b.amount - a.amount);
-
-    let debtorIdx = 0;
-    let creditorIdx = 0;
-    while (debtorIdx < debtors.length && creditorIdx < creditors.length) {
-      const debtor = debtors[debtorIdx];
-      const creditor = creditors[creditorIdx];
-      const payAmount = Math.min(debtor.amount, creditor.amount);
-
-      transactions.push({
-        from: debtor.userId,
-        to: creditor.userId,
-        amount: payAmount
+      expense.participants.forEach(participantObj => {
+        const pId = participantObj?._id?.toString() || participantObj;
+        if (!pId || pId === paidById) return; // skip payer paying themself
+        pairFlows[pId] = pairFlows[pId] || {};
+        pairFlows[pId][paidById] = (pairFlows[pId][paidById] || 0) + share;
       });
+    });
 
-      // Update remaining (brute update)
-      debtor.amount -= payAmount;
-      creditor.amount -= payAmount;
+    // Step B: Net opposite flows only between same pair (A->B vs B->A)
+    const EPS = 0.01;
+    Object.keys(pairFlows).forEach(a => {
+      Object.keys(pairFlows[a]).forEach(b => {
+        if (!pairFlows[b] || !pairFlows[b][a]) return;
+        const amtAB = pairFlows[a][b];
+        const amtBA = pairFlows[b][a];
+        const net = Math.min(amtAB, amtBA);
+        if (net > EPS) {
+          pairFlows[a][b] -= net;
+          pairFlows[b][a] -= net;
+        }
+        // clean very small values
+        if (pairFlows[a][b] <= EPS) delete pairFlows[a][b];
+        if (pairFlows[b][a] <= EPS) delete pairFlows[b][a];
+      });
+    });
 
-      // Advance if settled (epsilon)
-      if (debtor.amount < 0.01) debtorIdx++;
-      if (creditor.amount < 0.01) creditorIdx++;
-    }
+    // Step C: Emit transactions from remaining pairFlows (no new cross-pairs)
+    const transactions = [];
+    Object.keys(pairFlows).forEach(from => {
+      Object.keys(pairFlows[from]).forEach(to => {
+        const amt = pairFlows[from][to];
+        if (amt > EPS) transactions.push({ from, to, amount: amt });
+      });
+    });
 
-    // console.log('Raw Transactions:', transactions);
-
-    // Step 4: Map to names (brute lookup for each)
+    // Step D: Map ids to names/emails like you already do
     const namedTransactions = transactions.map(tx => {
       const fromMember = activeGroup.members.find(m => m._id.toString() === tx.from);
       const toMember = activeGroup.members.find(m => m._id.toString() === tx.to);
@@ -323,14 +303,11 @@ function Dashboard() {
       };
     });
 
-    // console.log('Named Transactions:', namedTransactions);
-
     setTimeout(() => {
-
       setOptimizedTransactions(namedTransactions);
       setIsCalculating(false);
-
     }, 1000);
+
 
   };
 
@@ -439,8 +416,8 @@ function Dashboard() {
 
             {/* Dropdown menu - now controlled by state for mobile compatibility */}
             <div className={`absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 transition-all duration-300 ease-in-out ${isProfileDropdownOpen
-                ? 'opacity-100 visible transform translate-y-0'
-                : 'opacity-0 invisible transform -translate-y-2'
+              ? 'opacity-100 visible transform translate-y-0'
+              : 'opacity-0 invisible transform -translate-y-2'
               }`}>
               <a
                 href="#"
@@ -854,106 +831,129 @@ function Dashboard() {
           )}
 
 
+
+
           <div className="bg-white my-5 rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
 
             {/* Scrollable container with fixed height */}
             <div className="max-h-150 overflow-y-auto mb-6 pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
               <div className="space-y-4">
-                {/* Sort expenses by date/createdAt in descending order (most recent first) */}
-                {expenses
-                  .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))
-                  .map((expense) => {
-                    const paidById = expense.paidBy?._id || expense.paidBy;
-                    const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
-                    const paidByDisplay = paidByMember
-                      ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
-                      : (expense.paidBy?.name || 'Unknown');
-
-                    const participantDisplays = expense.participants.map((participantObj) => {
-                      const participantId = participantObj?._id || participantObj;
-                      const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
-                      return participantMember
-                        ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
-                        : participantId;
-                    }).join(', ');
-
-                    // Get loading state for this specific expense (no hook call here)
-                    const isUpdating = updatingExpenses[expense._id] || false;
-
-                    // Handler to toggle isSettled with loading state
-                    const handleToggleSettled = async () => {
-                      // Set loading state for this specific expense
-                      setUpdatingExpenses(prev => ({ ...prev, [expense._id]: true }));
-                      try {
-                        await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
-                          isSettled: !expense.isSettled
-                        }, { headers: { Authorization: `Bearer ${token}` } });
-                        showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
-                        // Refresh expenses to update the UI
-                        const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
-                        setExpenses(res.data.expenses);
-                        setBalances(res.data.balances);
-                        calculateOptimizedTransactions(res.data.balances);
-                      } catch (err) {
-                        setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
-                      } finally {
-                        // Remove loading state for this specific expense
-                        setUpdatingExpenses(prev => {
-                          const newState = { ...prev };
-                          delete newState[expense._id];
-                          return newState;
-                        });
-                      }
-                    };
-
-                    return (
-                      <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
+                {isExpenseHistoryLoading ? (
+                  // Skeleton Loading State
+                  <>
+                    {[1, 2, 3, 4, 5].map((skeleton) => (
+                      <div key={skeleton} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200 animate-pulse">
                         <div className="flex justify-between items-start mb-2">
-                          <p className="font-medium text-gray-900">{expense.title}</p>
-                          {/* Optional: Add date display */}
-                          <span className="text-xs text-gray-500">
-                            {new Date(expense.createdAt || expense.date).toLocaleDateString()}
-                          </span>
+                          <div className="h-5 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_infinite] rounded w-32"></div>
+                          <div className="h-3 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_infinite] rounded w-20"></div>
                         </div>
-                        <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
-                        <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
-                        <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
-                        {/* Settled/Unsettled Toggle with Loader */}
+                        <div className="space-y-2">
+                          <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_infinite] rounded w-24"></div>
+                          <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_infinite] rounded w-36"></div>
+                          <div className="h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_infinite] rounded w-48"></div>
+                        </div>
                         <div className="mt-2 flex items-center">
-                          <div className="relative">
-                            <input
-                              type="checkbox"
-                              id={`settled-${expense._id}`}
-                              checked={expense.isSettled || false}
-                              onChange={handleToggleSettled}
-                              disabled={isUpdating}
-                              className={`h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 transition-all duration-200 ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                                }`}
-                            />
-                            {isUpdating && (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-                              </div>
-                            )}
-                          </div>
-                          <label
-                            htmlFor={`settled-${expense._id}`}
-                            className={`ml-2 text-sm font-medium transition-colors ${isUpdating
-                              ? 'text-gray-400 cursor-not-allowed'
-                              : 'text-gray-700 hover:text-emerald-600'
-                              }`}
-                          >
-                            {expense.isSettled ? 'Settled' : 'Unsettled'}
-                            {isUpdating && <span className="ml-1 text-xs">(updating...)</span>}
-                          </label>
+                          <div className="h-5 w-5 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_infinite] rounded"></div>
+                          <div className="ml-2 h-4 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 bg-[length:200%_100%] animate-[shimmer_2s_infinite] rounded w-16"></div>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </>
+                ) : (
+                  // Actual Expenses Content
+                  expenses
+                    .sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date))
+                    .map((expense) => {
+                      const paidById = expense.paidBy?._id || expense.paidBy;
+                      const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
+                      const paidByDisplay = paidByMember
+                        ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
+                        : (expense.paidBy?.name || 'Unknown');
+
+                      const participantDisplays = expense.participants.map((participantObj) => {
+                        const participantId = participantObj?._id || participantObj;
+                        const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
+                        return participantMember
+                          ? (participantMember.email === userEmail ? 'You' : (participantMember.name || participantMember.email))
+                          : participantId;
+                      }).join(', ');
+
+                      // Get loading state for this specific expense
+                      const isUpdating = updatingExpenses[expense._id] || false;
+
+                      // Handler to toggle isSettled with loading state
+                      const handleToggleSettled = async () => {
+                        // Set loading state for this specific expense
+                        setUpdatingExpenses(prev => ({ ...prev, [expense._id]: true }));
+                        try {
+                          await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
+                            isSettled: !expense.isSettled
+                          }, { headers: { Authorization: `Bearer ${token}` } });
+                          showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
+                          // Refresh expenses to update the UI
+                          const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
+                          setExpenses(res.data.expenses);
+                          setBalances(res.data.balances);
+                          calculateOptimizedTransactions(res.data.balances);
+                        } catch (err) {
+                          setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
+                        } finally {
+                          // Remove loading state for this specific expense
+                          setUpdatingExpenses(prev => {
+                            const newState = { ...prev };
+                            delete newState[expense._id];
+                            return newState;
+                          });
+                        }
+                      };
+
+                      return (
+                        <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="font-medium text-gray-900">{expense.title}</p>
+                            <span className="text-xs text-gray-500">
+                              {new Date(expense.createdAt || expense.date).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
+                          <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
+                          <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
+                          {/* Settled/Unsettled Toggle with Loader */}
+                          <div className="mt-2 flex items-center">
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                id={`settled-${expense._id}`}
+                                checked={expense.isSettled || false}
+                                onChange={handleToggleSettled}
+                                disabled={isUpdating}
+                                className={`h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 transition-all duration-200 ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                  }`}
+                              />
+                              {isUpdating && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                              )}
+                            </div>
+                            <label
+                              htmlFor={`settled-${expense._id}`}
+                              className={`ml-2 text-sm font-medium transition-colors ${isUpdating
+                                  ? 'text-gray-400 cursor-not-allowed'
+                                  : 'text-gray-700 hover:text-emerald-600'
+                                }`}
+                            >
+                              {expense.isSettled ? 'Settled' : 'Unsettled'}
+                              {isUpdating && <span className="ml-1 text-xs">(updating...)</span>}
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
               </div>
             </div>
-
           </div>
 
 
@@ -1118,6 +1118,15 @@ function Dashboard() {
       )}
 
       <style>{`
+
+      @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fade-in-out { 0% { opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { opacity: 0; } }
