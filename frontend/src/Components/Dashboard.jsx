@@ -791,7 +791,7 @@ function Dashboard() {
             <div className="space-y-3 cursor-pointer">
               {optimizedTransactions.map((tx, index) => (
                 <div key={index} className="p-3 bg-gray-50 rounded-md border border-gray-200 flex justify-between items-center">
-                  <p className="font-medium text-gray-900">{tx.from} pays {tx.to}</p>
+                  <p className="font-medium text-gray-900">{tx.from} will pay {tx.to}</p>
                   <p className="text-red-600 font-semibold">₹{tx.amount.toFixed(2)}</p>
                 </div>
               ))}
