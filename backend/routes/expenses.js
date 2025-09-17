@@ -91,7 +91,6 @@ router.get('/:groupId', auth, async (req, res) => {
   }
 });
 
-
 // DELETE /api/expenses/:expenseId - Delete expense (only if paidBy matches user)
 router.delete('/:expenseId', auth, async (req, res) => {
   try {
@@ -110,8 +109,8 @@ router.delete('/:expenseId', auth, async (req, res) => {
     group.expenses = group.expenses.filter(e => e.toString() !== expense._id.toString());
     await group.save();
 
-    // FIXED: Use findByIdAndDelete instead of deprecated remove()
-    await Expense.findByIdAndDelete(req.params.expenseId);
+    // Delete the expense
+    await expense.remove();
 
     res.json({ message: 'Expense deleted successfully' });
   } catch (error) {
@@ -119,3 +118,5 @@ router.delete('/:expenseId', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete expense' });
   }
 });
+
+module.exports = router;
