@@ -30,7 +30,7 @@ router.post('/register', async (req, res) => {
 
     const msg = {
       to: email,
-      from: 'yourverifiedemail@gmail.com', // Replace with verified SendGrid sender
+      from: 'splitify.mail@gmail.com', // Replace with verified SendGrid sender
       subject: `Welcome to Splitify! Verify Your Email to Get Started`,
       html: `
         <!DOCTYPE html>
@@ -50,7 +50,7 @@ router.post('/register', async (req, res) => {
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
           <p style="font-size: 12px; color: #666;">If you didn’t sign up, ignore this email.</p>
           <p style="font-size: 12px; color: #666;">Questions? Contact support@splitify.com.</p>
-          <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:noreply@yourdomain.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
+          <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:splitify.mail@gmail.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
           <div style="text-align: center; margin-top: 30px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">© 2025 Splitify. All rights reserved.</div>
         </body></html>
       `
@@ -106,7 +106,7 @@ router.post('/forgot-password', async (req, res) => {
 
     const msg = {
       to: email,
-      from: 'yourverifiedemail@gmail.com', // Replace with verified SendGrid sender
+      from: 'splitify.mail@gmail.com', // Replace with verified SendGrid sender
       subject: `Splitify Password Reset - Secure Link Inside`,
       html: `
         <!DOCTYPE html>
@@ -126,7 +126,7 @@ router.post('/forgot-password', async (req, res) => {
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
           <p style="font-size: 12px; color: #666;">If you didn’t request a reset, no action is needed.</p>
           <p style="font-size: 12px; color: #666;">Questions? Reply to this email.</p>
-          <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:noreply@yourdomain.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
+          <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:splitify.mail@gmail.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
           <div style="text-align: center; margin-top: 30px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">© 2025 Splitify. All rights reserved.</div>
         </body></html>
       `
