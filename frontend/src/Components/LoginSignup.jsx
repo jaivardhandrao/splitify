@@ -19,7 +19,7 @@ function LoginSignup() {
 // const API_BASE = 'http://localhost:5666/api';
 
 // NEW
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
   // Function for notification popup
   const showNotification = (msg) => {

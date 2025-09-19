@@ -42,7 +42,7 @@ function Dashboard() {
 
 
   // OLD
-  // const API_BASE = 'http://localhost:5666/api';
+  // const API_BASE = 'http://localhost:5666/api'; 
 
   // NEW
 
@@ -54,7 +54,7 @@ function Dashboard() {
 
 
   const APP_URL = 'https://splitify-pi.vercel.app/'
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5666/api';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
