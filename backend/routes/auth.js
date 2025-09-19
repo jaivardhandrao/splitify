@@ -23,47 +23,47 @@ router.post('/register', async (req, res) => {
     if (user) return res.status(400).json({ error: 'User exists' });
 
     user = new User({ email, password, name, phone });
-    await user.save();
-
+    
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
     const url = `${process.env.FRONTEND_URL}/verify/${token}`;
-
+    
     const msg = {
       to: email,
       from: 'splitify.mail@gmail.com', // Replace with verified SendGrid sender
       subject: `Welcome to Splitify! Verify Your Email to Get Started`,
       html: `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Verify Your Splitify Account</title></head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
-            <h1 style="color: #10b981; margin: 0;">Welcome to Splitify! 🚀</h1>
-            <p style="font-size: 16px; margin: 10px 0;">Hi ${name},</p>
-          </div>
-          <p>Thank you for signing up with Splitify – the easiest way to split expenses with friends!</p>
-          <p>To complete your registration, please verify your email by clicking below.</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${url}" style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">Verify My Email</a>
-          </div>
-          <p style="font-size: 14px; color: #666;">Or copy this link: <span style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all;">${url}</span></p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-          <p style="font-size: 12px; color: #666;">If you didn’t sign up, ignore this email.</p>
-          <p style="font-size: 12px; color: #666;">Questions? Contact support@splitify.com.</p>
-          <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:splitify.mail@gmail.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
-          <div style="text-align: center; margin-top: 30px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">© 2025 Splitify. All rights reserved.</div>
-        </body></html>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Verify Your Splitify Account</title></head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
+      <h1 style="color: #10b981; margin: 0;">Welcome to Splitify! 🚀</h1>
+      <p style="font-size: 16px; margin: 10px 0;">Hi ${name},</p>
+      </div>
+      <p>Thank you for signing up with Splitify – the easiest way to split expenses with friends!</p>
+      <p>To complete your registration, please verify your email by clicking below.</p>
+      <div style="text-align: center; margin: 30px 0;">
+      <a href="${url}" style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">Verify My Email</a>
+      </div>
+      <p style="font-size: 14px; color: #666;">Or copy this link: <span style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all;">${url}</span></p>
+      <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      <p style="font-size: 12px; color: #666;">If you didn’t sign up, ignore this email.</p>
+      <p style="font-size: 12px; color: #666;">Questions? Contact support@splitify.com.</p>
+      <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:splitify.mail@gmail.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
+      <div style="text-align: center; margin-top: 30px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">© 2025 Splitify. All rights reserved.</div>
+      </body></html>
       `
     };
-
+    
     await sgMail.send(msg);
-
     res.status(201).json({ message: 'Email sent! Check your inbox (and spam folder) for the verification link.' });
+    await user.save();
   } catch (error) {
     console.error('Email error:', error);
     res.status(500).json({ error: 'Failed to send email. Please try again.' });
   }
 });
+
 
 // POST /api/auth/verify/:token - Verify email with token
 router.post('/verify/:token', async (req, res) => {
