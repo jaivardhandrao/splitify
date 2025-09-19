@@ -22,7 +22,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notification, setNotification] = useState('');
-  const [copyStatus, setCopyStatus] = useState('Copy ID');
+  // const [copyStatus, setCopyStatus] = useState('Copy ID');
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
@@ -35,6 +35,9 @@ function Dashboard() {
   const [copied, setCopied] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [isExpenseHistoryLoading, setIsExpenseHistoryLoading] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(null); // Track expense ID for deletion
+  const [deleteError, setDeleteError] = useState(''); // For delete errors
+  const [currentCurrency, setCurrentCurrency] = useState('INR'); // for currency
 
 
 
@@ -84,7 +87,21 @@ function Dashboard() {
       .catch(err => setError('Failed to load groups: ' + err.message));
   };
 
+
   useEffect(() => {
+    if(activeGroup === null){
+      setIsExpenseHistoryLoading(false);
+    }
+  })
+
+  useEffect(() => {
+    // console.log('Active Group:', activeGroup);
+    setExpenses([]);
+    setBalances({});
+    setOptimizedTransactions([]);
+    if(!activeGroup === null){
+      setIsExpenseHistoryLoading(false);
+    }
     if (activeGroup && token) {
       setLoading(true);
       setIsExpenseHistoryLoading(true); // Start expense history loading
@@ -114,18 +131,46 @@ function Dashboard() {
     }
   }, [activeGroup, token]);
 
-  const handleApproveReject = async (requestId, action) => {
 
+
+  const handleApproveReject = async (requestId, action) => {
     setProcessingRequestId(requestId);
     setProcessingAction(action); // for loader
 
+
+
     try {
+      // Find the request and the user making the request
+      const request = joinRequests.find(req => req._id === requestId);
+      if (!request) {
+        setError('Request not found');
+        setProcessingRequestId(null);
+        setProcessingAction(null);
+        return;
+      }
+
+
+      // Check if the user is already a member of the group
+      const isAlreadyMember = activeGroup.members.some(member => member._id.toString() === request.user._id.toString());
+      if (isAlreadyMember) {
+        showNotification(`User is already a member of ${activeGroup.name} Group :)`);
+        setJoinRequests(joinRequests.filter(req => req._id !== requestId)); // Remove request from UI
+        const temp = "decline";
+        await axios.post(`${API_BASE}/groups/${activeGroup._id}/respond`, { requestId, temp }, { headers: { Authorization: `Bearer ${token}` } });
+        setProcessingRequestId(null);
+        setProcessingAction(null);
+        return;
+      }
+
+      // Proceed with API call if user is not a member
       await axios.post(`${API_BASE}/groups/${activeGroup._id}/respond`, { requestId, action }, { headers: { Authorization: `Bearer ${token}` } });
       setJoinRequests(joinRequests.filter(req => req._id !== requestId));
       showNotification(`Request ${action}ed!`);
       setProcessingRequestId(null);
       setProcessingAction(null);
+
     } catch (err) {
+
       setError('Failed to process request: ' + err.message);
       setProcessingAction(null);
       setProcessingRequestId(null);
@@ -473,13 +518,11 @@ function Dashboard() {
       setIsCalculating(false);
     }, 200);
   }
-//------------------------------------------------------------------------------------------
+  //------------------------------------------------------------------------------------------
 
-  const calculateOptimizedTransactions = (currentBalances) => {  // Ignore param, use expenses
-    // console.log('Expenses for calculation:', expenses);  
+  const calculateOptimizedTransactionsPairwise = (currentBalances) => {  // Ignore param, use expenses
 
     if (!activeGroup || !activeGroup.members || expenses.length === 0) {
-      // console.log('No group, members, or expenses, returning empty');
       setOptimizedTransactions([]);
       setIsCalculating(false);
       return;
@@ -611,10 +654,59 @@ function Dashboard() {
     setIsProfileDropdownOpen(false);
   };
 
+
   const closeSidebar = () => {
     setIsSidebarOpen(false);
   };
 
+
+  // New: Handle delete expense with confirmation
+  // New: Handle delete expense with confirmation and optimistic update
+  const handleDeleteExpense = async (expenseId) => {
+    try {
+
+      setUpdatingExpenses(prev => ({ ...prev, [expenseId]: true }));
+
+      setExpenses(prevExpenses => prevExpenses.filter(exp => exp._id !== expenseId));
+
+      setBalances(prevBalances => {
+        const newBalances = { ...prevBalances };
+        const expense = expenses.find(exp => exp._id === expenseId);
+        if (expense) {
+          const share = expense.amount / expense.participants.length;
+          const paidById = `${expense.paidBy._id}`;
+          newBalances[paidById] -= expense.amount;
+          expense.participants.forEach(participantId => {
+            newBalances[participantId.toString()] += share;
+          });
+        }
+        return newBalances;
+      });
+
+
+      // Perform the DELETE request
+      await axios.delete(`${API_BASE}/expenses/${expenseId}`, { headers: { Authorization: `Bearer ${token}` } });
+      showNotification('Expense deleted!');
+      console.log('Delete successful, expenseId:', expenseId); // Debug log
+
+    } catch (err) {
+
+      // console.error('Delete error:', err); // Debug error
+      // setDeleteError(err.response?.data?.error || 'Failed to delete expense. Please reload.');
+      // Revert optimistic update on failure
+      showNotification('Expense deleted!');
+      const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setExpenses(res.data.expenses);
+      setBalances(res.data.balances);
+    } finally {
+      setUpdatingExpenses(prev => {
+        const newState = { ...prev };
+        delete newState[expenseId];
+        return newState;
+      });
+      setIsDeleteModalOpen(null); // Close modal after processing
+    }
+  };
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
 
@@ -731,7 +823,9 @@ function Dashboard() {
               {groups.length === 0 ? (
                 // Modern loading state
                 <div className="space-y-3">
+
                   {/* Loading text with animated dots */}
+
                   <div className="flex items-center justify-center py-6">
                     <div className="text-center">
                       <div className="inline-flex items-center space-x-2 text-gray-500 text-sm">
@@ -745,6 +839,7 @@ function Dashboard() {
                       </div>
                     </div>
                   </div>
+
 
                   {/* Skeleton loading cards */}
                   {[1, 2, 3].map((index) => (
@@ -1035,7 +1130,8 @@ function Dashboard() {
               {optimizedTransactions.map((tx, index) => (
                 <div key={index} className="p-3 bg-gray-50 rounded-md border border-gray-200 flex justify-between items-center">
                   <p className="font-medium text-gray-900">{tx.from} will pay {tx.to}</p>
-                  <p className="text-red-600 font-semibold">₹{tx.amount.toFixed(2)}</p>
+                  {/* <p className="text-red-600 font-semibold">₹{tx.amount.toFixed(2)}</p> */}
+                  <p className="text-red-600 font-semibold">{currentCurrency === 'USD' ? '$' : currentCurrency === 'GBP' ? '£' : '₹'}{tx.amount.toFixed(2)}</p>
                 </div>
               ))}
               {optimizedTransactions.length === 0 && <p className="text-gray-500 text-center">All settled up!</p>}
@@ -1079,11 +1175,12 @@ function Dashboard() {
           <div className="bg-white my-5 rounded-lg shadow-md border border-gray-200 p-4 sm:p-6 animate-slide-up">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses History</h3>
 
-            {/* Scrollable container with fixed height */}
+            {/* Scrollable container with fixed height NEW --------------------------------------------------------------------------------- */}
+
             <div className="max-h-150 overflow-y-auto mb-6 pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
               <div className="space-y-4">
                 {isExpenseHistoryLoading ? (
-                  // Skeleton Loading State
+                  // Skeleton Loading State (unchanged)
                   <>
                     {[1, 2, 3, 4, 5].map((skeleton) => (
                       <div key={skeleton} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200 animate-pulse">
@@ -1114,6 +1211,17 @@ function Dashboard() {
                         ? (paidByMember.email === userEmail ? 'You' : (paidByMember.name || paidByMember.email))
                         : (expense.paidBy?.name || 'Unknown');
 
+
+                      // const paidByEmailId = "aaa"
+                      let paidByEmailId = "aa";
+                      try {
+                        paidByEmailId = paidByMember.email
+                      } catch (err) {
+                        console.log("ignore the error");
+                        return;
+                      }
+
+
                       const participantDisplays = expense.participants.map((participantObj) => {
                         const participantId = participantObj?._id || participantObj;
                         const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
@@ -1122,19 +1230,15 @@ function Dashboard() {
                           : participantId;
                       }).join(', ');
 
-                      // Get loading state for this specific expense
                       const isUpdating = updatingExpenses[expense._id] || false;
 
-                      // Handler to toggle isSettled with loading state
                       const handleToggleSettled = async () => {
-                        // Set loading state for this specific expense
                         setUpdatingExpenses(prev => ({ ...prev, [expense._id]: true }));
                         try {
                           await axios.patch(`${API_BASE}/expenses/${expense._id}`, {
                             isSettled: !expense.isSettled
                           }, { headers: { Authorization: `Bearer ${token}` } });
                           showNotification(`Expense marked as ${!expense.isSettled ? 'settled' : 'unsettled'}!`);
-                          // Refresh expenses to update the UI
                           const res = await axios.get(`${API_BASE}/expenses/${activeGroup._id}`, { headers: { Authorization: `Bearer ${token}` } });
                           setExpenses(res.data.expenses);
                           setBalances(res.data.balances);
@@ -1142,7 +1246,6 @@ function Dashboard() {
                         } catch (err) {
                           setError(`Failed to update expense: ${err.response?.data?.error || err.message}`);
                         } finally {
-                          // Remove loading state for this specific expense
                           setUpdatingExpenses(prev => {
                             const newState = { ...prev };
                             delete newState[expense._id];
@@ -1150,6 +1253,8 @@ function Dashboard() {
                           });
                         }
                       };
+
+                      const isPayer = paidByEmailId === userEmail; // Assuming userId is set from /me response
 
                       return (
                         <div key={expense._id} className="p-4 bg-gray-50 rounded-md shadow border border-gray-200">
@@ -1159,10 +1264,10 @@ function Dashboard() {
                               {new Date(expense.createdAt || expense.date).toLocaleDateString()}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p>
+                          {/* <p className="text-sm text-gray-600">Amount: ₹{expense.amount}</p> */}
+                          <p className="text-sm text-gray-600">Amount: {currentCurrency === 'USD' ? '$' : currentCurrency === 'GBP' ? '£' : '₹'}{expense.amount}</p>
                           <p className="text-sm text-gray-600">Paid by: {paidByDisplay}</p>
                           <p className="text-sm text-gray-600">Participants: {participantDisplays}</p>
-                          {/* Settled/Unsettled Toggle with Loader */}
                           <div className="mt-2 flex items-center">
                             <div className="relative">
                               <input
@@ -1171,8 +1276,7 @@ function Dashboard() {
                                 checked={expense.isSettled || false}
                                 onChange={handleToggleSettled}
                                 disabled={isUpdating}
-                                className={`h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 transition-all duration-200 ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                                  }`}
+                                className={`h-5 w-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500 transition-all duration-200 ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                               />
                               {isUpdating && (
                                 <div className="absolute inset-0 flex items-center justify-center">
@@ -1191,12 +1295,64 @@ function Dashboard() {
                               {isUpdating && <span className="ml-1 text-xs">(updating...)</span>}
                             </label>
                           </div>
+
+                          {isPayer && (
+                            <div className="mt-2">
+                              <button
+                                onClick={() => setIsDeleteModalOpen(expense._id)}
+                                className="px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+                              >
+                                Delete Expense
+                              </button>
+                            </div>
+                          )}
+
+                          {deleteError && <p className="text-red-600 text-sm mt-1">{deleteError}</p>}
+
                         </div>
                       );
                     })
                 )}
               </div>
             </div>
+
+
+            {/* // New: Delete Confirmation Modal with alert */}
+
+            {isDeleteModalOpen && (
+              <div className="fixed inset-0 flex items-center justify-center z-60" style={{ backdropFilter: 'blur(5px)' }}>
+                <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full space-y-4">
+                  <h3 className="text-lg font-bold text-gray-900">Confirm Delete</h3>
+                  <p className="text-sm text-red-600 font-bold uppercase">YOU WANT TO DELETE THE TRANSACTION WITH</p>
+                  {expenses.find(exp => exp._id === isDeleteModalOpen) && (
+                    <p className="text-sm text-gray-600">
+                      Name: {expenses.find(exp => exp._id === isDeleteModalOpen).title},
+                      Amount: ₹{expenses.find(exp => exp._id === isDeleteModalOpen).amount}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-600">Are you sure you want to delete this expense? This action cannot be undone.</p>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleDeleteExpense(isDeleteModalOpen)}
+                      className="flex-1 bg-red-600 text-white py-2 rounded-md hover:bg-red-700"
+                    >
+                      {updatingExpenses[isDeleteModalOpen] ? 'Deleting...' : 'Confirm Delete'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsDeleteModalOpen(null);
+                        setDeleteError('');
+                      }}
+                      className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-md hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {deleteError && <p className="text-red-600 text-sm text-center mt-2">{deleteError}</p>}
+                </div>
+              </div>
+            )}
+
           </div>
 
 

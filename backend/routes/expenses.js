@@ -113,10 +113,12 @@ router.delete('/:expenseId', auth, async (req, res) => {
     await expense.remove();
 
     res.json({ message: 'Expense deleted successfully' });
+
   } catch (error) {
     console.error('Delete expense error:', error);
     res.status(500).json({ error: 'Failed to delete expense' });
   }
 });
+
 
 module.exports = router;
