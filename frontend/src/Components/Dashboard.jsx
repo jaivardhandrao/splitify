@@ -152,13 +152,26 @@ function Dashboard() {
 
       // Check if the user is already a member of the group
       const isAlreadyMember = activeGroup.members.some(member => member._id.toString() === request.user._id.toString());
+
       if (isAlreadyMember) {
+        
         showNotification(`User is already a member of ${activeGroup.name} Group :)`);
-        setJoinRequests(joinRequests.filter(req => req._id !== requestId)); // Remove request from UI
+      
+        // Remove all requests from that user, not just one
+        setJoinRequests(prev =>
+          prev.filter(req => req.user._id.toString() !== request.user._id.toString())
+        );
+      
         const temp = "decline";
-        await axios.post(`${API_BASE}/groups/${activeGroup._id}/respond`, { requestId, temp }, { headers: { Authorization: `Bearer ${token}` } });
+        await axios.post(
+          `${API_BASE}/groups/${activeGroup._id}/respond`,
+          { requestId, temp },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+      
         setProcessingRequestId(null);
         setProcessingAction(null);
+        
         return;
       }
 
@@ -175,6 +188,9 @@ function Dashboard() {
       setProcessingAction(null);
       setProcessingRequestId(null);
     }
+
+
+    window.location.reload();
   };
 
   const handleLogout = () => {
