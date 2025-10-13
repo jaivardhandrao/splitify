@@ -17,14 +17,14 @@ router.get('/me', auth, async (req, res) => {
 router.post('/register', async (req, res) => {
   try {
     const { email, password, name, phone } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'Required fields' });
+    if (!email || !password || !name || !phone) return res.status(400).json({ error: 'Required fields' });
 
     let user = await User.findOne({ email });
     if (user) return res.status(400).json({ error: 'User exists' });
 
     user = new User({ email, password, name, phone });
     
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '3h' });
     const url = `${process.env.FRONTEND_URL}/verify/${token}`;
     
     const msg = {
@@ -56,11 +56,17 @@ router.post('/register', async (req, res) => {
     };
     
     await sgMail.send(msg);
+
     res.status(201).json({ message: 'Email sent! Check your inbox (and spam folder) for the verification link.' });
+
     await user.save();
+
   } catch (error) {
+
     console.error('Email error:', error);
+
     res.status(500).json({ error: 'Failed to send email. Please try again.' });
+    
   }
 });
 
@@ -186,7 +192,7 @@ router.post('/login', async (req, res) => {
 
     if (!user.isVerified) return res.status(400).json({ error: 'Please verify your email first' });
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15d' });
     console.log('Token generated:', token); // Debug
     res.json({ token, user: { id: user._id, email: user.email, name: user.name, phone: user.phone } });
   } catch (error) {
