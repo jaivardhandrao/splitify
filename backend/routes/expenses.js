@@ -4,6 +4,37 @@ const Group = require('../models/Group');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
+// GET /api/expenses/my/all - Get all expenses where user is a participant
+router.get('/my/all', auth, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find all expenses where user is a participant
+    const expenses = await Expense.find({
+      participants: userId
+    })
+      .populate('group', 'name _id') // Populate group name
+      .populate('paidBy', 'name email _id') // Populate payer info
+      .populate('participants', 'name email _id') // Populate all participants
+      .sort({ createdAt: -1 }); // Sort by newest first
+
+    // Calculate total amount spent by user
+    let totalSpent = 0;
+    expenses.forEach(expense => {
+      const share = expense.amount / expense.participants.length;
+      totalSpent += share;
+    });
+
+    res.json({ 
+      expenses,
+      totalSpent: parseFloat(totalSpent.toFixed(2)),
+      count: expenses.length
+    });
+  } catch (error) {
+    console.error('Fetch my expenses error:', error);
+    res.status(500).json({ error: 'Failed to fetch expenses' });
+  }
+});
 
 // PATCH /api/expenses/:expenseId/edit - Edit expense (only payer can edit)
 router.patch('/:expenseId/edit', auth, async (req, res) => {
