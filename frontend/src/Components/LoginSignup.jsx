@@ -1,30 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 function LoginSignup() {
-  const [isLogin, setIsLogin] = useState(true); // Toggle between login and signup
-  const [email, setEmail] = useState(''); // Shared email input
-  const [password, setPassword] = useState(''); // Added for password
-  const [name, setName] = useState(''); // User's name
-  const [phone, setPhone] = useState(''); // User's phone number
-  const [error, setError] = useState(''); // For error messages
-  const [loading, setLoading] = useState(false); // For submit loading
-  const [notification, setNotification] = useState(''); // For success notifications
-
-  // New: State for Forgot Password modal
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [notification, setNotification] = useState('');
   const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState(''); // Email for reset
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isVerifyingToken, setIsVerifyingToken] = useState(true);
 
-  // OLD
-// const API_BASE = 'http://localhost:5666/api';
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+  const API_BASE = import.meta.env.VITE_API_BASE_URL;
+  const navigate = useNavigate();
 
-// NEW
+  // Auto-login check when component mounts
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    
+    if (token) {
+      setIsVerifyingToken(true);
+      // Verify token with backend
+      axios
+        .get(`${API_BASE}/auth/me`, { 
+          headers: { Authorization: `Bearer ${token}` } 
+        })
+        .then((res) => {
+          // Token is valid, redirect to dashboard
+          showNotification('Already logged in! Redirecting...');
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 500);
+        })
+        .catch((err) => {
+          // Token is invalid or expired, remove it
+          localStorage.removeItem('token');
+          setIsVerifyingToken(false);
+        });
+    } else {
+      setIsVerifyingToken(false);
+    }
+  }, [navigate, API_BASE]);
 
-  // Function for notification popup
   const showNotification = (msg) => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 3000); // 3s duration
+    setTimeout(() => setNotification(''), 3000);
   };
 
   const handleSubmit = async (e) => {
@@ -39,13 +63,13 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL;
         localStorage.setItem('token', response.data.token);
         showNotification('Login successful! Redirecting...');
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          navigate('/dashboard');
         }, 1500);
       } else {
         response = await axios.post(`${API_BASE}/auth/register`, { email, password, name, phone });
         showNotification('Registration successful! Check your email (and spam folder) for verification link.');
-        setIsLogin(true); // Switch to login
-        setName(''); // Reset signup fields
+        setIsLogin(true);
+        setName('');
         setPhone('');
       }
     } catch (err) {
@@ -53,13 +77,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL;
     } finally {
       setLoading(false);
     }
-
-    // Reset common fields
-    // setEmail('');
-    // setPassword('');
   };
 
-  // Handle forgot password submit
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -76,6 +95,21 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL;
       setLoading(false);
     }
   };
+
+  // Show loading screen while verifying token
+  if (isVerifyingToken) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block">
+            <div className="w-16 h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
+          </div>
+          <p className="text-gray-600 font-medium text-lg">Verifying your session...</p>
+          <p className="text-gray-500 text-sm mt-2">Please wait</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
