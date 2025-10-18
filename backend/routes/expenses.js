@@ -4,19 +4,23 @@ const Group = require('../models/Group');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
+
 // GET /api/expenses/my/all - Get all expenses where user is a participant
 router.get('/my/all', auth, async (req, res) => {
   try {
     const userId = req.user._id;
 
     // Find all expenses where user is a participant
-    const expenses = await Expense.find({
+    const allExpenses = await Expense.find({
       participants: userId
     })
       .populate('group', 'name _id') // Populate group name
       .populate('paidBy', 'name email _id') // Populate payer info
       .populate('participants', 'name email _id') // Populate all participants
       .sort({ createdAt: -1 }); // Sort by newest first
+
+    // Filter out expenses where group is null or doesn't exist (deleted groups)
+    const expenses = allExpenses.filter(expense => expense.group && expense.group._id);
 
     // Calculate total amount spent by user
     let totalSpent = 0;
