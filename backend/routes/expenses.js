@@ -176,6 +176,35 @@ router.get('/:groupId', auth, async (req, res) => {
 });
 
 // DELETE /api/expenses/:expenseId - Delete expense (only if paidBy matches user)
+// router.delete('/:expenseId', auth, async (req, res) => {
+//   try {
+//     const expense = await Expense.findById(req.params.expenseId);
+//     if (!expense) return res.status(404).json({ error: 'Expense not found' });
+
+//     const user = req.user;
+//     const paidById = expense.paidBy.toString();
+//     if (paidById !== user._id.toString()) {
+//       return res.status(403).json({ error: 'Only the payer can delete this expense' });
+//     }
+
+//     // Remove from group's expenses array
+//     const group = await Group.findById(expense.group);
+//     if (!group) return res.status(404).json({ error: 'Group not found' });
+//     group.expenses = group.expenses.filter(e => e.toString() !== expense._id.toString());
+//     await group.save();
+
+//     // Delete the expense
+//     await expense.remove();
+
+//     res.json({ message: 'Expense deleted successfully' });
+
+//   } catch (error) {
+//     console.error('Delete expense error:', error);
+//     res.status(500).json({ error: 'Failed to delete expense' });
+//   }
+// });
+
+// DELETE /api/expenses/:expenseId - Delete expense (only if paidBy matches user)
 router.delete('/:expenseId', auth, async (req, res) => {
   try {
     const expense = await Expense.findById(req.params.expenseId);
@@ -193,8 +222,8 @@ router.delete('/:expenseId', auth, async (req, res) => {
     group.expenses = group.expenses.filter(e => e.toString() !== expense._id.toString());
     await group.save();
 
-    // Delete the expense
-    await expense.remove();
+    // Delete the expense using deleteOne()
+    await expense.deleteOne();
 
     res.json({ message: 'Expense deleted successfully' });
 
@@ -203,6 +232,7 @@ router.delete('/:expenseId', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete expense' });
   }
 });
+
 
 
 module.exports = router;
