@@ -299,7 +299,7 @@ function LoginSignup() {
 
         {/* Footer */}
         <div className="text-center text-sm text-gray-500">
-          <p>&copy; 2025 Splitify. All rights reserved.</p>
+          <p>Made by Jaivardhan with ❤️</p>
         </div>
       </div>
 
@@ -354,3 +354,5 @@ function LoginSignup() {
 }
 
 export default LoginSignup;
+
+
