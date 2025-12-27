@@ -38,7 +38,7 @@ const LeaveModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-20 backdrop-blur-md z-50">
+    <div className="fixed inset-0 flex items-center justify-center  bg-opacity-20 backdrop-blur-md z-50">
       <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full space-y-4 border border-gray-200">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-orange-100 rounded-lg">

@@ -40,7 +40,7 @@ function DeleteGroupModal({ isOpen, onClose, onDelete, groupName }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-20 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center  bg-opacity-20 backdrop-blur-md animate-fade-in">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 transform transition-all animate-slide-up">
         {/* Header */}
         <div className="bg-red-100/60 backdrop-blur-xl px-6 py-4 rounded-t-xl border-b border-red-200/50">
