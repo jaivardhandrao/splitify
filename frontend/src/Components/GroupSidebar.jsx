@@ -54,7 +54,7 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
 
       {/* Sidebar */}
       <aside
-        className={`bg-white border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-6 w-64 lg:translate-x-0 ${
+        className={`bg-white border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-50 w-64 lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:relative lg:w-64 flex flex-col`}
       >
