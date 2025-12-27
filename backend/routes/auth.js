@@ -1,12 +1,12 @@
 const express = require('express');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-const sgMail = require('@sendgrid/mail');
+const { Resend } = require('resend');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
-// Set SendGrid API key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // GET /api/auth/me - Get logged-in user info
 router.get('/me', auth, async (req, res) => {
@@ -27,10 +27,13 @@ router.post('/register', async (req, res) => {
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '3h' });
     const url = `${process.env.FRONTEND_URL}/verify/${token}`;
     
-    const msg = {
+    console.log('🔍 DEBUG: Attempting to send email from: onboarding@resend.dev');
+    console.log('🔍 DEBUG: Sending to:', email);
+
+    await resend.emails.send({
+      from: 'Splitify <onboarding@resend.dev>',
       to: email,
-      from: 'splitify.mail@gmail.com', // Replace with verified SendGrid sender
-      subject: `Welcome to Splitify! Verify Your Email to Get Started`,
+      subject: 'Welcome to Splitify! Verify Your Email to Get Started',
       html: `
       <!DOCTYPE html>
       <html lang="en">
@@ -47,15 +50,12 @@ router.post('/register', async (req, res) => {
       </div>
       <p style="font-size: 14px; color: #666;">Or copy this link: <span style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all;">${url}</span></p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-      <p style="font-size: 12px; color: #666;">If you didn’t sign up, ignore this email.</p>
+      <p style="font-size: 12px; color: #666;">If you didn't sign up, ignore this email.</p>
       <p style="font-size: 12px; color: #666;">Questions? Contact support@splitify.com.</p>
-      <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:splitify.mail@gmail.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
       <div style="text-align: center; margin-top: 30px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">© 2025 Splitify. All rights reserved.</div>
       </body></html>
       `
-    };
-    
-    await sgMail.send(msg);
+    });
 
     res.status(201).json({ message: 'Email sent! Check your inbox (and spam folder) for the verification link.' });
 
@@ -110,10 +110,10 @@ router.post('/forgot-password', async (req, res) => {
     const token = jwt.sign({ id: user._id, type: 'reset' }, process.env.JWT_SECRET, { expiresIn: '1h' });
     const url = `${process.env.FRONTEND_URL}/reset-password/${token}`;
 
-    const msg = {
+    await resend.emails.send({
+      from: 'Splitify <onboarding@resend.dev>',
       to: email,
-      from: 'splitify.mail@gmail.com', // Replace with verified SendGrid sender
-      subject: `Splitify Password Reset - Secure Link Inside`,
+      subject: 'Splitify Password Reset - Secure Link Inside',
       html: `
         <!DOCTYPE html>
         <html lang="en">
@@ -123,22 +123,19 @@ router.post('/forgot-password', async (req, res) => {
             <h1 style="color: #10b981; margin: 0;">Password Reset Request</h1>
             <p style="font-size: 16px; margin: 10px 0;">Hi ${user.name || 'User'},</p>
           </div>
-          <p>We received a request to reset your Splitify password. If you didn’t request this, ignore this email.</p>
+          <p>We received a request to reset your Splitify password. If you didn't request this, ignore this email.</p>
           <p>To reset your password, click below. This link expires in 1 hour.</p>
           <div style="text-align: center; margin: 30px 0;">
             <a href="${url}" style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">Reset Password</a>
           </div>
           <p style="font-size: 14px; color: #666;">Or copy this link: <span style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px; word-break: break-all;">${url}</span></p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-          <p style="font-size: 12px; color: #666;">If you didn’t request a reset, no action is needed.</p>
+          <p style="font-size: 12px; color: #666;">If you didn't request a reset, no action is needed.</p>
           <p style="font-size: 12px; color: #666;">Questions? Reply to this email.</p>
-          <p style="font-size: 11px; color: #999; margin-top: 20px;"><strong>Unsubscribe:</strong> <a href="mailto:splitify.mail@gmail.com?subject=Unsubscribe Splitify" style="color: #10b981;">click here</a>.</p>
           <div style="text-align: center; margin-top: 30px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">© 2025 Splitify. All rights reserved.</div>
         </body></html>
       `
-    };
-
-    await sgMail.send(msg);
+    });
 
     res.status(200).json({ message: 'Password reset link sent! Check your email (and spam folder).' });
   } catch (error) {

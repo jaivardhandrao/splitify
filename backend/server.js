@@ -6,8 +6,21 @@ require('dotenv').config(); // Load env vars
 dotenv.config();  // Loads .env file
 
 const app = express();
-// add local host for dev testing
-app.use(cors({ origin: [process.env.BACKEND_URL , process.env.FRONTEND_URL, 'https://splitify-pi.vercel.app/dashboard' , 'https://splitify-pi.vercel.app/*', 'https://splitify-pi.vercel.app/',  'https://splitify-pi.vercel.app'] }));
+// CORS configuration - allow local development and production URLs
+app.use(cors({ 
+  origin: [
+    'http://localhost:5173',           // Local frontend (Vite default)
+    'http://localhost:3000',           // Alternative local port
+    'http://localhost:5174',           // Alternative Vite port
+    process.env.BACKEND_URL, 
+    process.env.FRONTEND_URL, 
+    'https://splitify-pi.vercel.app/dashboard',
+    'https://splitify-pi.vercel.app/*',
+    'https://splitify-pi.vercel.app/',
+    'https://splitify-pi.vercel.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());  // Parses JSON bodies
 
 // Connect to MongoDB Atlas
