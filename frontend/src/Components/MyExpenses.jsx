@@ -133,15 +133,33 @@ const MyExpenses = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                   <p className="text-emerald-100 text-sm font-medium">Total Expenses</p>
-                  <p className="text-3xl font-bold mt-1">{myExpenses.length}</p>
+                  <p className="text-3xl font-bold mt-1">
+                    {isMyExpensesLoading ? (
+                      <span className="inline-block w-16 h-8 bg-white/20 rounded animate-pulse"></span>
+                    ) : (
+                      myExpenses.length
+                    )}
+                  </p>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                   <p className="text-emerald-100 text-sm font-medium">Total Spent</p>
-                  <p className="text-3xl font-bold mt-1">{currencySymbol}{myExpensesTotalSpent.toFixed(2)}</p>
+                  <p className="text-3xl font-bold mt-1">
+                    {isMyExpensesLoading ? (
+                      <span className="inline-block w-24 h-8 bg-white/20 rounded animate-pulse"></span>
+                    ) : (
+                      `${currencySymbol}${myExpensesTotalSpent.toFixed(2)}`
+                    )}
+                  </p>
                 </div>
                 <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
                   <p className="text-emerald-100 text-sm font-medium">Showing</p>
-                  <p className="text-3xl font-bold mt-1">{filteredExpenses.length}</p>
+                  <p className="text-3xl font-bold mt-1">
+                    {isMyExpensesLoading ? (
+                      <span className="inline-block w-16 h-8 bg-white/20 rounded animate-pulse"></span>
+                    ) : (
+                      filteredExpenses.length
+                    )}
+                  </p>
                 </div>
               </div>
             </div>

@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useDashboard } from '../Contexts/DashboardContext';
+import CreateGroupModal from './modals/CreateGroupModal';
+import JoinGroupModal from './modals/JoinGroupModal';
+import DeleteGroupModal from './modals/DeleteGroupModal';
 
 const GroupSidebar = ({ isOpen, toggleSidebar }) => {
   const {
@@ -8,19 +11,26 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
     setActiveGroup,
     handleCreateGroup,
     handleJoinGroup,
+    handleDeleteGroup,
+    isGroupsLoading,
+    user,
   } = useDashboard();
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
   const handleCreate = () => {
-    const name = prompt('Enter group name:');
-    if (name) {
-      handleCreateGroup(name);
-    }
+    setIsCreateModalOpen(true);
   };
 
   const handleJoin = () => {
-    const groupId = prompt('Enter group ID to join:');
-    if (groupId) {
-      handleJoinGroup(groupId);
+    setIsJoinModalOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (activeGroup) {
+      setIsDeleteModalOpen(true);
     }
   };
 
@@ -44,11 +54,12 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
 
       {/* Sidebar */}
       <aside
-        className={`bg-white border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-50 w-64 lg:translate-x-0 ${
+        className={`bg-white border-r border-gray-200 shadow-lg transform transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-6 w-64 lg:translate-x-0 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:relative lg:w-64`}
+        } lg:relative lg:w-64 flex flex-col`}
       >
-        <div className="p-4 sm:p-6 h-full overflow-y-auto">
+        {/* Fixed Header Section */}
+        <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Groups</h3>
 
           <nav className="space-y-4">
@@ -92,33 +103,20 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
               <span>Join Group</span>
             </button>
           </nav>
+        </div>
 
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h4 className="text-sm font-medium text-gray-500 mb-4">Your Groups</h4>
+        {/* Scrollable Groups Section */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <h4 className="text-sm font-medium text-gray-500 mb-4">Your Groups</h4>
 
-            {groups.length === 0 ? (
-              // Modern loading state
+            {isGroupsLoading ? (
+              // Loading state with skeletons
               <div className="space-y-3">
-                {/* Loading text with animated dots */}
-                <div className="flex items-center justify-center py-6">
+                <div className="flex items-center justify-center py-4">
                   <div className="text-center">
                     <div className="inline-flex items-center space-x-2 text-gray-500 text-sm">
                       <div className="w-4 h-4 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
                       <span className="font-medium">Loading groups</span>
-                      <div className="flex space-x-1">
-                        <div
-                          className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-                          style={{ animationDelay: '0ms' }}
-                        ></div>
-                        <div
-                          className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-                          style={{ animationDelay: '150ms' }}
-                        ></div>
-                        <div
-                          className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-                          style={{ animationDelay: '300ms' }}
-                        ></div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -134,6 +132,17 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : groups.length === 0 ? (
+              // Empty state - no groups yet
+              <div className="text-center py-8 px-4">
+                <div className="inline-flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-gray-600 font-medium mb-1">No groups yet</p>
+                <p className="text-xs text-gray-500">Create or join a group to get started!</p>
               </div>
             ) : (
               // Actual groups list
@@ -157,9 +166,26 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
                 ))}
               </ul>
             )}
-          </div>
         </div>
       </aside>
+
+      {/* Modals */}
+      <CreateGroupModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreateGroup}
+      />
+      <JoinGroupModal
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+        onJoin={handleJoinGroup}
+      />
+      <DeleteGroupModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onDelete={handleDeleteGroup}
+        groupName={activeGroup?.name || ''}
+      />
     </>
   );
 };

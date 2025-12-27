@@ -11,16 +11,18 @@ export const DashboardProvider = ({ children }) => {
   const [activeGroup, setActiveGroup] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [balances, setBalances] = useState({});
+  const [pastMembers, setPastMembers] = useState([]);
   const [optimizedTransactions, setOptimizedTransactions] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [joinRequests, setJoinRequests] = useState([]);
-  const [user, setUser] = useState({ email: '', name: '', phone: '' });
+  const [user, setUser] = useState({ _id: '', email: '', name: '', phone: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notification, setNotification] = useState('');
   const [currentCurrency, setCurrentCurrency] = useState('INR');
   const [updatingExpenses, setUpdatingExpenses] = useState({});
   const [isExpenseHistoryLoading, setIsExpenseHistoryLoading] = useState(false);
+  const [isGroupsLoading, setIsGroupsLoading] = useState(true);
 
   // NEW: MyExpenses state
   const [myExpenses, setMyExpenses] = useState([]);
@@ -46,6 +48,7 @@ export const DashboardProvider = ({ children }) => {
       .get(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         setUser({
+          _id: res.data._id || res.data.id,
           email: res.data.email,
           name: res.data.name || 'User',
           phone: res.data.phone || 'N/A',
@@ -61,10 +64,12 @@ export const DashboardProvider = ({ children }) => {
   }, [token, navigate]);
 
   const fetchGroups = () => {
+    setIsGroupsLoading(true);
     axios
       .get(`${API_BASE}/groups`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setGroups(res.data))
-      .catch((err) => setError('Failed to load groups: ' + err.message));
+      .catch((err) => setError('Failed to load groups: ' + err.message))
+      .finally(() => setIsGroupsLoading(false));
   };
 
   // NEW: Fetch My Expenses function
@@ -90,6 +95,7 @@ export const DashboardProvider = ({ children }) => {
     if (activeGroup === null) {
       setExpenses([]);
       setBalances({});
+      setPastMembers([]);
       setOptimizedTransactions([]);
       setIsExpenseHistoryLoading(false);
       return;
@@ -103,6 +109,7 @@ export const DashboardProvider = ({ children }) => {
         .then((res) => {
           setExpenses(res.data.expenses);
           setBalances(res.data.balances);
+          setPastMembers(res.data.pastMembers || []);
           setIsExpenseHistoryLoading(false);
         })
         .catch((err) => {
@@ -148,14 +155,42 @@ export const DashboardProvider = ({ children }) => {
   const handleJoinGroup = async (groupId) => {
     if (!groupId) return;
     try {
-      await axios.post(
+      const response = await axios.post(
         `${API_BASE}/groups/request`,
         { groupId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      showNotification('Join request sent!');
+      showNotification(response.data.message || 'Join request sent!');
     } catch (err) {
-      setError('Error: ' + err.message);
+      const errorMsg = err.response?.data?.error || 'Error sending join request';
+      setError(errorMsg);
+      throw err; // Re-throw to let modal handle it
+    }
+  };
+
+  const handleDeleteGroup = async (confirmationName) => {
+    if (!activeGroup) return;
+    try {
+      await axios.delete(
+        `${API_BASE}/groups/${activeGroup._id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          data: { confirmationName }
+        }
+      );
+      
+      // Update local state
+      setGroups(groups.filter(g => g._id !== activeGroup._id));
+      setActiveGroup(null);
+      setExpenses([]);
+      setBalances({});
+      setOptimizedTransactions([]);
+      
+      showNotification('Group deleted successfully');
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Error deleting group';
+      setError(errorMsg);
+      throw err; // Re-throw to let modal handle it
     }
   };
 
@@ -174,8 +209,17 @@ export const DashboardProvider = ({ children }) => {
     setIsCalculating(true);
 
     const computedBalances = {};
+    
+    // Initialize balances for current members
     activeGroup.members.forEach((member) => {
       computedBalances[member._id.toString()] = 0;
+    });
+    
+    // Initialize balances for past members (for their historical transactions)
+    pastMembers.forEach((pm) => {
+      if (pm.user && pm.user._id) {
+        computedBalances[pm.user._id.toString()] = 0;
+      }
     });
 
     expenses.forEach((expense) => {
@@ -234,20 +278,44 @@ export const DashboardProvider = ({ children }) => {
     }
 
     const namedTransactions = transactions.map((tx) => {
-      const fromMember = activeGroup.members.find((m) => m._id.toString() === tx.from);
-      const toMember = activeGroup.members.find((m) => m._id.toString() === tx.to);
+      // Check current members first
+      let fromMember = activeGroup.members.find((m) => m._id.toString() === tx.from);
+      let toMember = activeGroup.members.find((m) => m._id.toString() === tx.to);
+      
+      // Check past members if not found in current members
+      let fromIsPast = false;
+      let toIsPast = false;
+      
+      if (!fromMember) {
+        const pastMember = pastMembers.find((pm) => pm.user?._id?.toString() === tx.from);
+        if (pastMember && pastMember.user) {
+          fromMember = pastMember.user;
+          fromIsPast = true;
+        }
+      }
+      
+      if (!toMember) {
+        const pastMember = pastMembers.find((pm) => pm.user?._id?.toString() === tx.to);
+        if (pastMember && pastMember.user) {
+          toMember = pastMember.user;
+          toIsPast = true;
+        }
+      }
+      
       return {
         from: fromMember
-          ? fromMember.email === user.email
+          ? (fromMember.email === user.email
             ? 'You'
-            : fromMember.name || fromMember.email
+            : fromMember.name || fromMember.email) + (fromIsPast ? ' (left the group)' : '')
           : tx.from,
         to: toMember
-          ? toMember.email === user.email
+          ? (toMember.email === user.email
             ? 'You'
-            : toMember.name || toMember.email
+            : toMember.name || toMember.email) + (toIsPast ? ' (left the group)' : '')
           : tx.to,
         amount: tx.amount,
+        fromIsPast,
+        toIsPast
       };
     });
 
@@ -266,12 +334,15 @@ export const DashboardProvider = ({ children }) => {
     setExpenses,
     balances,
     setBalances,
+    pastMembers,
+    setPastMembers,
     optimizedTransactions,
     setOptimizedTransactions,
     isCalculating,
     joinRequests,
     setJoinRequests,
     user,
+    setUser,
     loading,
     setLoading,
     error,
@@ -283,6 +354,8 @@ export const DashboardProvider = ({ children }) => {
     setUpdatingExpenses,
     isExpenseHistoryLoading,
     setIsExpenseHistoryLoading,
+    isGroupsLoading,
+    setIsGroupsLoading,
     // NEW: MyExpenses exports
     myExpenses,
     setMyExpenses,
@@ -296,6 +369,7 @@ export const DashboardProvider = ({ children }) => {
     fetchGroups,
     handleCreateGroup,
     handleJoinGroup,
+    handleDeleteGroup,
     handleLogout,
     calculateOptimizedTransactions,
     API_BASE,

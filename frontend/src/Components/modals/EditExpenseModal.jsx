@@ -6,6 +6,7 @@ const EditExpenseModal = ({ isOpen, onClose, expense }) => {
   const {
     activeGroup,
     user,
+    pastMembers,
     setExpenses,
     setBalances,
     showNotification,
@@ -25,9 +26,10 @@ const EditExpenseModal = ({ isOpen, onClose, expense }) => {
       setExpenseTitle(expense.title || '');
       setExpenseAmount(expense.amount?.toString() || '');
       
-      // Convert participants to array of IDs
+      // Convert participants to array of string IDs
       const participantIds = expense.participants.map(p => {
-        return p?._id?.toString() || p?.toString();
+        const id = p?._id?.toString() || p?.toString();
+        return id;
       });
       setExpenseParticipants(participantIds);
     }
@@ -78,10 +80,34 @@ const EditExpenseModal = ({ isOpen, onClose, expense }) => {
 
   // Get payer info for display
   const paidById = expense.paidBy?._id || expense.paidBy;
-  const paidByMember = activeGroup?.members.find(m => m._id.toString() === paidById.toString());
+  
+  // Check current members first
+  let paidByMember = activeGroup?.members.find(m => m._id.toString() === paidById.toString());
+  let paidByIsPast = false;
+  
+  // If not found in current members, check past members
+  if (!paidByMember) {
+    const pastMember = pastMembers.find(pm => pm.user?._id?.toString() === paidById.toString());
+    if (pastMember && pastMember.user) {
+      paidByMember = pastMember.user;
+      paidByIsPast = true;
+    }
+  }
+  
   const paidByDisplay = paidByMember
-    ? (paidByMember.email === user.email ? 'You' : (paidByMember.name || paidByMember.email))
+    ? (paidByMember.email === user.email ? 'You' : (paidByMember.name || paidByMember.email)) + (paidByIsPast ? ' (left)' : '')
     : 'Unknown';
+
+  // Create a combined list of all members (current + past)
+  // This ensures that participants who were in the expense but left the group are still shown
+  const allAvailableMembers = [
+    // Current members
+    ...activeGroup.members.map(m => ({ ...m, isPast: false })),
+    // Past members (only those not already in current members)
+    ...pastMembers
+      .filter(pm => pm.user && !activeGroup.members.some(m => m._id.toString() === pm.user._id.toString()))
+      .map(pm => ({ ...pm.user, isPast: true }))
+  ];
 
   return (
     <>
@@ -136,32 +162,55 @@ const EditExpenseModal = ({ isOpen, onClose, expense }) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Participants:
               </label>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {activeGroup && activeGroup.members.map((m) => (
-                  <div key={m._id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={`edit-participant-${m._id}`}
-                      checked={expenseParticipants.includes(m._id)}
-                      onChange={() =>
-                        setExpenseParticipants(prev =>
-                          prev.includes(m._id)
-                            ? prev.filter(id => id !== m._id)
-                            : [...prev, m._id]
-                        )
-                      }
-                      disabled={isSubmittingExpense}
-                      className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-                    />
-                    <label
-                      htmlFor={`edit-participant-${m._id}`}
-                      className="ml-2 text-sm text-gray-700"
-                    >
-                      {m.name || m.email}
-                    </label>
-                  </div>
-                ))}
+              <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-2">
+                {allAvailableMembers.map((m) => {
+                  const memberId = m._id.toString();
+                  const isChecked = expenseParticipants.includes(memberId);
+                  
+                  return (
+                    <div key={memberId} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id={`edit-participant-${memberId}`}
+                        checked={isChecked}
+                        onChange={() => {
+                          setExpenseParticipants(prev => {
+                            const prevIds = prev.map(id => id.toString());
+                            if (prevIds.includes(memberId)) {
+                              return prev.filter(id => id.toString() !== memberId);
+                            } else {
+                              return [...prev, memberId];
+                            }
+                          });
+                        }}
+                        disabled={isSubmittingExpense}
+                        className="h-4 w-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                      />
+                      <label
+                        htmlFor={`edit-participant-${memberId}`}
+                        className={`ml-2 text-sm cursor-pointer ${m.isPast ? 'text-gray-400' : 'text-gray-700'}`}
+                      >
+                        {m.name || m.email}
+                        {m.isPast && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">
+                            left
+                          </span>
+                        )}
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
+              <p className="mt-2 text-xs text-gray-500">
+                {allAvailableMembers.filter(m => m.isPast).length > 0 && (
+                  <span className="flex items-center">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Members marked "left" have left the group but can still be part of this expense
+                  </span>
+                )}
+              </p>
             </div>
 
             {/* Submit Button with Loader */}

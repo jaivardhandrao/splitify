@@ -78,6 +78,7 @@ const OptimizedTransactions = () => {
                 ? '0 16px 48px rgba(16,185,129,0.4), 0 8px 24px rgba(16,185,129,0.3), inset 0 1px 0 rgba(255,255,255,0.3)'
                 : '0 8px 32px rgba(16,185,129,0.3), 0 4px 16px rgba(16,185,129,0.2), inset 0 1px 0 rgba(255,255,255,0.2)',
             opacity: isCalculating || !activeGroup ? 0.6 : 1,
+            zIndex: 1,
           }}
         >
           {isCalculating ? (
@@ -164,7 +165,13 @@ const OptimizedTransactions = () => {
             className="p-3 bg-gray-50 rounded-md border border-gray-200 flex justify-between items-center"
           >
             <p className="font-medium text-gray-900">
-              {tx.from} will pay {tx.to}
+              <span className={tx.fromIsPast ? 'text-gray-400' : ''}>
+                {tx.from}
+              </span>
+              {' '}will pay{' '}
+              <span className={tx.toIsPast ? 'text-gray-400' : ''}>
+                {tx.to}
+              </span>
             </p>
             <p className="text-red-600 font-semibold">
               {currentCurrency === 'USD' ? '$' : currentCurrency === 'GBP' ? '£' : '₹'}
