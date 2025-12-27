@@ -38,8 +38,14 @@ const LeaveModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center  bg-opacity-20 backdrop-blur-md z-50">
-      <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full space-y-4 border border-gray-200">
+    <div 
+      className="fixed inset-0 flex items-center justify-center bg-opacity-20 backdrop-blur-md z-50 animate-fade-in"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full space-y-4 border border-gray-200 animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-orange-100 rounded-lg">
             <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,6 +114,23 @@ const LeaveModal = ({ isOpen, onClose }) => {
           </button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slide-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.1s ease-out;
+        }
+        .animate-slide-up {
+          animation: slide-up 0.15s ease-out;
+        }
+      `}</style>
     </div>
   );
 };

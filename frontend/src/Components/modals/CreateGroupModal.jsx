@@ -43,8 +43,14 @@ function CreateGroupModal({ isOpen, onClose, onCreate }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-opacity-20 backdrop-blur-md animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all animate-slide-up">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-opacity-20 backdrop-blur-md animate-fade-in"
+      onClick={handleClose}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all animate-slide-up"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="bg-emerald-100/60 backdrop-blur-xl px-6 py-4 rounded-t-xl border-b border-emerald-200/50">
           <div className="flex items-center justify-between">
@@ -149,10 +155,10 @@ function CreateGroupModal({ isOpen, onClose, onCreate }) {
           to { opacity: 1; transform: translateY(0); }
         }
         .animate-fade-in {
-          animation: fade-in 0.2s ease-out;
+          animation: fade-in 0.1s ease-out;
         }
         .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
+          animation: slide-up 0.15s ease-out;
         }
       `}</style>
     </div>
