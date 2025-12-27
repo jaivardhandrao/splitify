@@ -5,6 +5,7 @@ import Dashboard from './Components/Dashboard/Dashboard';
 import Verify from './Components/Verify';
 import ResetPassword from './Components/ResetPassword';
 import MyExpenses from './Components/MyExpenses';
+import Profile from './Components/Profile';
 
 // Wrapper component for routes that need DashboardProvider
 function ProtectedRoutes({ children }) {
@@ -34,6 +35,14 @@ function App() {
           element={
             <ProtectedRoutes>
               <MyExpenses />
+            </ProtectedRoutes>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoutes>
+              <Profile />
             </ProtectedRoutes>
           }
         />

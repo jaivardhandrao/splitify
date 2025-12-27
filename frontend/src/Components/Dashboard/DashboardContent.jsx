@@ -3,9 +3,11 @@ import { useDashboard } from '../../Contexts/DashboardContext';
 import GroupSidebar from '../GroupSidebar';
 import ExpenseHistory from '../ExpenseHistory';
 import OptimizedTransactions from '../OptimizedTransactions';
+import PastMembers from '../PastMembers';
 import Notification from '../Notification';
 import JoinRequests from '../JoinRequests';
 import NavBar from '../NavBar';
+import GroupSettingsDropdown from '../modals/GroupSettingsDropdown';
 import { useNavigate } from 'react-router-dom';
 
 // Inside your component
@@ -94,44 +96,58 @@ function DashboardContent() {
                 {/* Active Group Header */}
                 <div className="mb-6 sm:mb-8 animate-fade-in">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
-                    <div className="w-full sm:w-auto mb-4 sm:mb-0">
-                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                        {activeGroup.name}
-                      </h2>
-                      <p className="text-sm text-gray-600 mt-1 break-words">
-                        Members: {activeGroup.members.map(m => m.name || m.email).join(', ')}
-                      </p>
-                      <div className="text-sm text-gray-600 mt-1 flex items-center flex-wrap gap-2">
-                        <span>Group ID: {activeGroup._id} (Share to invite)</span>
-                        <button
-                          onClick={handleCopyGroupId}
-                          className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-md transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                        >
-                          {copied ? (
-                            <>
+                    <div className="w-full sm:w-auto mb-4 sm:mb-0 flex-1">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+                            {activeGroup.name}
+                          </h2>
+                          <p className="text-sm text-gray-600 mt-1">
+                            <span className="font-medium text-gray-700">Group Owner:</span>{' '}
+                            {activeGroup.owner?.name || activeGroup.owner?.email || 'Unknown'}
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1 break-words">
+                            <span className="font-medium text-gray-700">Members:</span>{' '}
+                            {activeGroup.members.map(m => m.name || m.email).join(', ')}
+                          </p>
+                          <div className="text-sm text-gray-600 mt-1 flex items-center flex-wrap gap-2">
+                            <span>Group ID: {activeGroup._id} (Share to invite)</span>
+                            <button
+                              onClick={handleCopyGroupId}
+                              className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-md transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                            >
+                              {copied ? (
+                                <>
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span className="text-green-600">Copied!</span>
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>Copy ID</span>
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={handleShareGroupId}
+                              className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-md transition-all duration-200 border border-blue-200 hover:border-blue-300"
+                            >
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
                               </svg>
-                              <span className="text-green-600">Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                              </svg>
-                              <span>Copy ID</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={handleShareGroupId}
-                          className="inline-flex items-center space-x-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-500 bg-blue-50 hover:bg-blue-100 rounded-md transition-all duration-200 border border-blue-200 hover:border-blue-300"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                          </svg>
-                          <span>Share ID</span>
-                        </button>
+                              <span>Share ID</span>
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Settings Dropdown */}
+                        <div className="ml-4">
+                          <GroupSettingsDropdown group={activeGroup} />
+                        </div>
                       </div>
                     </div>
 
@@ -166,6 +182,9 @@ function DashboardContent() {
 
                 {/* Join Requests */}
                 <JoinRequests />
+
+                {/* Past Members */}
+                <PastMembers />
 
                 {/* Optimized Transactions */}
                 <OptimizedTransactions />

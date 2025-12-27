@@ -9,6 +9,7 @@ const ExpenseHistory = () => {
     expenses,
     activeGroup,
     user,
+    pastMembers,
     isExpenseHistoryLoading,
     updatingExpenses,
     currentCurrency,
@@ -296,10 +297,23 @@ const ExpenseHistory = () => {
             ) : (
               filteredAndSortedExpenses.map((expense) => {
                 const paidById = expense.paidBy?._id || expense.paidBy;
-                const paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
+                
+                // Check current members first
+                let paidByMember = activeGroup.members.find(m => m._id.toString() === paidById.toString());
+                let paidByIsPast = false;
+                
+                // If not found in current members, check past members
+                if (!paidByMember) {
+                  const pastMember = pastMembers.find(pm => pm.user?._id?.toString() === paidById.toString());
+                  if (pastMember && pastMember.user) {
+                    paidByMember = pastMember.user;
+                    paidByIsPast = true;
+                  }
+                }
+                
                 const paidByDisplay = paidByMember
-                  ? (paidByMember.email === user.email ? 'You' : (paidByMember.name || paidByMember.email))
-                  : (expense.paidBy?.name || 'Unknown');
+                  ? (paidByMember.email === user.email ? 'You' : (paidByMember.name || paidByMember.email)) + (paidByIsPast ? ' (left)' : '')
+                  : (expense.paidBy?.name || paidById);
 
                 let paidByEmailId = null;
                 try {
@@ -310,9 +324,22 @@ const ExpenseHistory = () => {
 
                 const participantDisplays = expense.participants.map((participantObj) => {
                   const participantId = participantObj?._id || participantObj;
-                  const participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
+                  
+                  // Check current members first
+                  let participantMember = activeGroup.members.find(m => m._id.toString() === participantId.toString());
+                  let participantIsPast = false;
+                  
+                  // If not found in current members, check past members
+                  if (!participantMember) {
+                    const pastMember = pastMembers.find(pm => pm.user?._id?.toString() === participantId.toString());
+                    if (pastMember && pastMember.user) {
+                      participantMember = pastMember.user;
+                      participantIsPast = true;
+                    }
+                  }
+                  
                   return participantMember
-                    ? (participantMember.email === user.email ? 'You' : (participantMember.name || participantMember.email))
+                    ? (participantMember.email === user.email ? 'You' : (participantMember.name || participantMember.email)) + (participantIsPast ? ' (left)' : '')
                     : participantId;
                 }).join(', ');
 

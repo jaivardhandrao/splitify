@@ -2,15 +2,49 @@ const express = require('express');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { Resend } = require('resend');
+const { OAuth2Client } = require('google-auth-library');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Initialize Google OAuth client
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 // GET /api/auth/me - Get logged-in user info
 router.get('/me', auth, async (req, res) => {
   res.json({ id: req.user._id, email: req.user.email, name: req.user.name, phone: req.user.phone });
+});
+
+// PUT /api/auth/profile - Update user profile (name and phone only, email is locked)
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { name, phone } = req.body;
+
+    if (!name || !phone) {
+      return res.status(400).json({ error: 'Name and phone are required' });
+    }
+
+    // Update only name and phone (email is locked for security)
+    req.user.name = name;
+    req.user.phone = phone;
+
+    await req.user.save();
+
+    res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email,  // Return email but it wasn't changed
+        phone: req.user.phone
+      }
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
 });
 
 // POST /api/auth/register
@@ -195,6 +229,74 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error.message, error.stack); // Enhanced logging
     res.status(500).json({ error: 'Server error during login: ' + error.message });
+  }
+});
+
+// POST /api/auth/google - Google Sign-In
+router.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    
+    if (!credential) {
+      return res.status(400).json({ error: 'Google credential required' });
+    }
+
+    // Verify Google token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    console.log('Google Sign-In attempt for:', email);
+
+    // Check if user exists
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+
+    if (user) {
+      // Existing user - update if needed
+      if (!user.googleId && user.authProvider === 'local') {
+        // Link Google account to existing local account
+        user.googleId = googleId;
+        user.profilePicture = picture;
+        user.isVerified = true; // Auto-verify via Google
+        await user.save();
+        console.log('Linked Google account to existing user:', email);
+      }
+    } else {
+      // New user - create account
+      user = new User({
+        email,
+        name,
+        phone: '', // Optional for Google users
+        googleId,
+        authProvider: 'google',
+        profilePicture: picture,
+        isVerified: true, // Auto-verify Google users
+      });
+      await user.save();
+      console.log('Created new Google user:', email);
+    }
+
+    // Generate JWT token (same as normal login)
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15d' });
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        phone: user.phone,
+        profilePicture: user.profilePicture,
+        authProvider: user.authProvider,
+      },
+    });
+  } catch (error) {
+    console.error('Google Sign-In error:', error);
+    res.status(500).json({ error: 'Failed to authenticate with Google' });
   }
 });
 

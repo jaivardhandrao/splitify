@@ -62,17 +62,28 @@ router.patch('/:expenseId/edit', auth, async (req, res) => {
     }
 
     // Check if user is in the group
-    const group = await Group.findById(expense.group);
+    const group = await Group.findById(expense.group)
+      .populate({
+        path: 'pastMembers.user',
+        select: '_id'
+      });
     if (!group || !group.members.some(m => m.toString() === user._id.toString())) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
 
-    // Validate all participants are group members
+    // Validate all participants are either current group members OR past members
+    // This allows editing expenses that include people who left the group
+    const allValidMemberIds = [
+      ...group.members.map(m => m.toString()),
+      ...(group.pastMembers || []).map(pm => pm.user._id.toString())
+    ];
+    
     const validParticipants = participants.every(pId => 
-      group.members.some(m => m.toString() === pId.toString())
+      allValidMemberIds.includes(pId.toString())
     );
+    
     if (!validParticipants) {
-      return res.status(400).json({ error: 'All participants must be group members' });
+      return res.status(400).json({ error: 'All participants must be current or past group members' });
     }
 
     // Update expense
@@ -138,6 +149,10 @@ router.get('/:groupId', auth, async (req, res) => {
     const group = await Group.findById(req.params.groupId)
       .populate('members', 'name email _id') // Ensure _id, name, email populated
       .populate({
+        path: 'pastMembers.user',
+        select: 'name email _id'
+      })
+      .populate({
         path: 'expenses',
         populate: { path: 'paidBy', select: 'name email _id' },
         populate: { path: 'participants', select: '_id' } // participants are refs to User _id
@@ -145,11 +160,20 @@ router.get('/:groupId', auth, async (req, res) => {
 
     if (!group) return res.status(404).json({ error: 'Group not found' });
 
-    // Compute balances keyed by _id
+    // Compute balances keyed by _id (including past members for pending transactions)
     const balances = {};
     group.members.forEach(member => {
       balances[member._id.toString()] = 0; // Initialize to 0 for all members
     });
+
+    // Also initialize past members in balances if they have pending transactions
+    if (group.pastMembers && group.pastMembers.length > 0) {
+      group.pastMembers.forEach(pm => {
+        if (pm.user && pm.user._id) {
+          balances[pm.user._id.toString()] = 0;
+        }
+      });
+    }
 
     group.expenses.forEach(expense => {
       const share = expense.amount / expense.participants.length;
@@ -168,7 +192,8 @@ router.get('/:groupId', auth, async (req, res) => {
     res.json({ 
       expenses: group.expenses, 
       balances, // Keyed by _id
-      members: group.members // Ensure frontend has this if needed
+      members: group.members, // Ensure frontend has this if needed
+      pastMembers: group.pastMembers || [] // Include past members for UI
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
