@@ -58,14 +58,14 @@ router.post('/register', async (req, res) => {
 
     user = new User({ email, password, name, phone });
     
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '3h' });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '10h' });
     const url = `${process.env.FRONTEND_URL}/verify/${token}`;
     
-    console.log('🔍 DEBUG: Attempting to send email from: onboarding@resend.dev');
+    console.log('🔍 DEBUG: Attempting to send email from:', process.env.EMAIL_FROM);
     console.log('🔍 DEBUG: Sending to:', email);
 
     await resend.emails.send({
-      from: 'Splitify <onboarding@resend.dev>',
+      from: process.env.EMAIL_FROM,
       to: email,
       subject: 'Welcome to Splitify! Verify Your Email to Get Started',
       html: `
@@ -145,7 +145,7 @@ router.post('/forgot-password', async (req, res) => {
     const url = `${process.env.FRONTEND_URL}/reset-password/${token}`;
 
     await resend.emails.send({
-      from: 'Splitify <onboarding@resend.dev>',
+      from: process.env.EMAIL_FROM,
       to: email,
       subject: 'Splitify Password Reset - Secure Link Inside',
       html: `
