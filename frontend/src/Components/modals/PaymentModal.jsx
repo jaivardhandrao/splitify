@@ -271,72 +271,31 @@ const PaymentModal = ({ isOpen, onClose }) => {
     }
 
     const q = buildUpiQuery({ pa, pn, am, tn });
+    
+    // Use generic UPI deep link - let the OS handle app picker
+    // This prevents the "repeatedly trying to open" security warning
     const upiUrl = `upi://pay?${q}`;
-
-    // iOS: Multiple app fallback strategy
-    if (isIOS()) {
-      let attemptCount = 0;
-      
-      // Try Google Pay
-      const gpayIOS = `gpay://upi/pay?${q}`;
-      window.location.href = gpayIOS;
-      attemptCount++;
-
-      // Try PhonePe after 800ms
-      setTimeout(() => {
-        const phonePeIOS = `phonepe://pay?${q}`;
-        window.location.href = phonePeIOS;
-        attemptCount++;
-      }, 800);
-
-      // Try BHIM UPI after 1600ms
-      setTimeout(() => {
-        const bhimIOS = `bhim://pay?${q}`;
-        window.location.href = bhimIOS;
-        attemptCount++;
-      }, 1600);
-
-      // Final fallback to generic UPI after 2400ms
-      setTimeout(() => {
-        window.location.href = upiUrl;
-      }, 2400);
-      
-      return;
-    }
-
-    // Android: Multiple app fallback strategy with Intent URLs
-    if (isAndroid()) {
-      let attemptCount = 0;
-      
-      // 1. Try Google Pay Intent
-      const gpayIntent = `intent://pay?${q}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
-      window.location.href = gpayIntent;
-      attemptCount++;
-
-      // 2. Try PhonePe Intent after 800ms
-      setTimeout(() => {
-        const phonePeIntent = `intent://pay?${q}#Intent;scheme=upi;package=com.phonepe.app;end`;
-        window.location.href = phonePeIntent;
-        attemptCount++;
-      }, 800);
-
-      // 3. Try BHIM Intent after 1600ms
-      setTimeout(() => {
-        const bhimIntent = `intent://pay?${q}#Intent;scheme=upi;package=in.org.npci.upiapp;end`;
-        window.location.href = bhimIntent;
-        attemptCount++;
-      }, 1600);
-
-      // 4. Final fallback to generic UPI after 2400ms (opens app chooser)
-      setTimeout(() => {
-        window.location.href = upiUrl;
-      }, 2400);
-      
-      return;
-    }
-
-    // Generic mobile fallback
+    
+    // Single call - iOS and Android will show native app chooser
+    // User can pick: Google Pay, PhonePe, BHIM, Paytm, or any installed UPI app
     window.location.href = upiUrl;
+    
+    // Optional: Detect if no UPI app is installed (user still on page after 2s)
+    setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        // User is still on the page - might not have any UPI app
+        const shouldInstall = confirm(
+          'No UPI app detected. Would you like to install Google Pay?'
+        );
+        if (shouldInstall) {
+          if (isIOS()) {
+            window.location.href = 'https://apps.apple.com/app/google-pay/id1193357041';
+          } else {
+            window.location.href = 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user';
+          }
+        }
+      }
+    }, 2000);
   };
 
   const handlePayment = async (userId, amount, isCustom = false) => {
@@ -374,11 +333,11 @@ const PaymentModal = ({ isOpen, onClose }) => {
         to: userToPay.name
       });
       
-      // Close modal after initiating payment (longer delay for multiple attempts)
+      // Close modal after initiating payment
       setTimeout(() => {
         setProcessingPayment(null);
         onClose();
-      }, 2500);
+      }, 1000);
     } else {
       // Desktop: UPI ID is already shown, no action needed
       setProcessingPayment(null);
@@ -585,7 +544,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
                   <span className="bg-white px-2 py-1 rounded border border-gray-200">BHIM UPI</span>
                 </div>
                 <p className="text-xs text-gray-500">
-                  💡 Will automatically try multiple UPI apps. No confirmation recorded automatically.
+                  💡 Choose your UPI app from the popup. Payment confirmation is not recorded automatically.
                 </p>
               </>
             ) : (
