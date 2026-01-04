@@ -13,7 +13,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
   const [upiIds, setUpiIds] = useState({});
   const [settlementOnlyMode, setSettlementOnlyMode] = useState(true);
   const [showAppSelector, setShowAppSelector] = useState(null); // { userId, amount, isCustom }
-  
+
   // Use ref for synchronous access to UPI IDs (critical for iOS deep linking)
   const upiIdsRef = useRef({});
   useEffect(() => {
@@ -78,9 +78,9 @@ const PaymentModal = ({ isOpen, onClose }) => {
 
   const calculateBalances = () => {
     setIsLoading(true);
-    
+
     const balances = {};
-    
+
     // Initialize balances for current members
     activeGroup.members.forEach((member) => {
       balances[member._id.toString()] = {
@@ -91,7 +91,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
         isPast: false
       };
     });
-    
+
     // Initialize balances for past members
     pastMembers.forEach((pm) => {
       if (pm.user && pm.user._id) {
@@ -110,7 +110,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
       if (expense.splitType !== 'equal' || expense.isSettled === true) {
         return;
       }
-      
+
       const share = expense.amount / (expense.participants ? expense.participants.length : 1);
       const paidById = expense.paidBy?._id?.toString() || expense.paidBy;
 
@@ -131,22 +131,22 @@ const PaymentModal = ({ isOpen, onClose }) => {
     // Calculate what current user owes to others (negative balance means user owes)
     const currentUserId = user._id.toString();
     const currentUserBalance = balances[currentUserId]?.balance || 0;
-    
+
     // For each user, calculate how much the current user owes them
     const userOwes = {};
     Object.entries(balances).forEach(([userId, data]) => {
       if (userId === currentUserId) return;
-      
+
       // If other user has positive balance and current user has negative balance
       // Calculate the amount current user owes to this specific user
       const otherBalance = data.balance;
-      
+
       if (otherBalance > 0.01 && currentUserBalance < -0.01) {
         // Simplified: distribute the owed amount proportionally
         const totalPositive = Object.values(balances)
           .filter(b => b.balance > 0.01)
           .reduce((sum, b) => sum + b.balance, 0);
-        
+
         const proportionalOwed = (Math.abs(currentUserBalance) * otherBalance) / totalPositive;
         userOwes[userId] = {
           ...data,
@@ -165,7 +165,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     if (Object.prototype.hasOwnProperty.call(upiIds, userId)) {
       return upiIds[userId];
     }
-    
+
     try {
       const response = await axios.get(`${API_BASE}/auth/user/${userId}/upi`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -187,10 +187,10 @@ const PaymentModal = ({ isOpen, onClose }) => {
       // Show only users with pending settlements AND have UPI ID
       return Object.entries(userBalances).filter(([userId, data]) => {
         if (!data.amountOwed || data.amountOwed < 0.01) return false;
-        
+
         // Hide users without UPI ID
         if (!upiIds[userId] || upiIds[userId].trim() === '') return false;
-        
+
         const searchLower = searchTerm.toLowerCase();
         return (
           data.name.toLowerCase().includes(searchLower) ||
@@ -200,21 +200,21 @@ const PaymentModal = ({ isOpen, onClose }) => {
     } else {
       // Show all group members who have UPI ID
       if (!activeGroup || !activeGroup.members) return [];
-      
+
       const allMembers = [];
-      
+
       // Add current members with UPI ID
       activeGroup.members.forEach(member => {
         if (member._id.toString() === user._id.toString()) return; // Skip current user
-        
+
         const userId = member._id.toString();
         // Hide users without UPI ID
         if (!upiIds[userId] || upiIds[userId].trim() === '') return;
-        
+
         const searchLower = searchTerm.toLowerCase();
         const name = member.name || member.email;
         const email = member.email;
-        
+
         if (
           name.toLowerCase().includes(searchLower) ||
           email.toLowerCase().includes(searchLower)
@@ -231,20 +231,20 @@ const PaymentModal = ({ isOpen, onClose }) => {
           ]);
         }
       });
-      
+
       // Add past members with UPI ID
       pastMembers.forEach(pm => {
         if (!pm.user || !pm.user._id) return;
         if (pm.user._id.toString() === user._id.toString()) return; // Skip current user
-        
+
         const userId = pm.user._id.toString();
         // Hide users without UPI ID
         if (!upiIds[userId] || upiIds[userId].trim() === '') return;
-        
+
         const searchLower = searchTerm.toLowerCase();
         const name = pm.user.name || pm.user.email;
         const email = pm.user.email;
-        
+
         if (
           name.toLowerCase().includes(searchLower) ||
           email.toLowerCase().includes(searchLower)
@@ -261,13 +261,13 @@ const PaymentModal = ({ isOpen, onClose }) => {
           ]);
         }
       });
-      
+
       return allMembers;
     }
   }, [userBalances, searchTerm, settlementOnlyMode, activeGroup, pastMembers, user, upiIds]);
 
   // Build UPI payment URL
-  const buildUpiQuery = ({ pa, pn, am, tn, cu = 'INR' }) => {
+  const buildUpiQueryOLD = ({ pa, pn, am, tn, cu = 'INR' }) => {
     const params = new URLSearchParams();
     params.set('pa', pa); // UPI ID
     if (pn) params.set('pn', pn);
@@ -275,6 +275,34 @@ const PaymentModal = ({ isOpen, onClose }) => {
     params.set('cu', cu);
     if (tn) params.set('tn', tn);
     return params.toString();
+  };
+
+  const buildUpiQuery = ({ pa, pn, am, tn, cu = 'INR' }) => {
+    // 1. Sanitize the Amount: Ensure strictly 2 decimal places
+    // This prevents floating point errors like 14.6666667 which banks reject
+    const cleanAmount = parseFloat(am).toFixed(2);
+
+    // 2. Sanitize the Note: 
+    // - Remove special characters (keep only alphanumeric and spaces)
+    // - Truncate to 30 chars (Banks reject long notes)
+    // - Encode spaces as %20 manually, NOT +
+    const cleanNote = tn
+      ? encodeURIComponent(tn.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 30))
+      : "Splitify";
+
+    // 3. Generate a Transaction Ref (tr)
+    // Adding a unique 'tr' often bypasses "duplicate/spam" filters in banking apps
+    const transactionRef = `SPLIT${Date.now()}`;
+
+    // 4. Manual String Construction (Safest for Cross-Platform)
+    let link = `pa=${encodeURIComponent(pa)}`;
+    link += `&pn=${encodeURIComponent(pn || '')}`;
+    link += `&am=${cleanAmount}`;
+    link += `&cu=${cu}`;
+    link += `&tn=${cleanNote}`;
+    link += `&tr=${transactionRef}`; // Important for tracking
+
+    return link;
   };
 
   const openPayment = ({ pa, pn, am, tn, from, to, appType }) => {
@@ -334,11 +362,11 @@ const PaymentModal = ({ isOpen, onClose }) => {
   const handlePayment = (userId, amount, isCustom = false, appType = null) => {
     const userToPayId = userId;
     const userToPay = userBalances[userToPayId];
-    
+
     if (!userToPay) return;
 
     const finalAmount = isCustom ? customAmounts[userToPayId] : amount;
-    
+
     if (!finalAmount || finalAmount <= 0) {
       alert('Please enter a valid amount');
       return;
@@ -353,7 +381,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     // CRITICAL: Get UPI ID synchronously from ref (no await!)
     // This ensures we stay in the user gesture call stack for iOS
     const upiId = upiIdsRef.current[userToPayId];
-    
+
     // Check if UPI ID is loaded
     if (!Object.prototype.hasOwnProperty.call(upiIdsRef.current, userToPayId)) {
       alert("Loading payment details... Please try again in a moment.");
@@ -361,7 +389,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
       fetchUpiId(userToPayId);
       return;
     }
-    
+
     if (!upiId || upiId.trim() === '') {
       alert(`${userToPay.name} hasn't set up their UPI ID yet. Please ask them to add it in their profile.`);
       return;
@@ -370,7 +398,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     // On mobile: trigger UPI payment with selected app (SYNCHRONOUSLY)
     if (isMobile() && appType) {
       setProcessingPayment(userToPayId);
-      
+
       // Open payment app immediately (no await before this!)
       openPayment({
         pa: upiId,
@@ -381,7 +409,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
         to: userToPay.name,
         appType: appType
       });
-      
+
       // Close app selector and modal after initiating payment
       setTimeout(() => {
         setShowAppSelector(null);
@@ -495,18 +523,16 @@ const PaymentModal = ({ isOpen, onClose }) => {
                 {settlementOnlyMode ? 'Settlement Only' : 'All Members'}
               </span>
             </div>
-            
+
             {/* Toggle Switch */}
             <button
               onClick={() => setSettlementOnlyMode(!settlementOnlyMode)}
-              className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
-                settlementOnlyMode ? 'bg-emerald-500' : 'bg-gray-300'
-              }`}
+              className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${settlementOnlyMode ? 'bg-emerald-500' : 'bg-gray-300'
+                }`}
             >
               <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-in-out ${
-                  settlementOnlyMode ? 'translate-x-8' : 'translate-x-1'
-                }`}
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-in-out ${settlementOnlyMode ? 'translate-x-8' : 'translate-x-1'
+                  }`}
               />
             </button>
           </div>
@@ -551,9 +577,9 @@ const PaymentModal = ({ isOpen, onClose }) => {
                 {settlementOnlyMode ? 'All settled up!' : 'No members available'}
               </p>
               <p className="text-gray-500 text-sm mt-1">
-                {settlementOnlyMode 
-                  ? "You don't owe anyone in this group" 
-                  : searchTerm 
+                {settlementOnlyMode
+                  ? "You don't owe anyone in this group"
+                  : searchTerm
                     ? 'Try a different search term'
                     : 'No members with UPI ID set up yet'
                 }
@@ -632,10 +658,10 @@ const PaymentModal = ({ isOpen, onClose }) => {
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
                     <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
-                      <path d="M44 24C44 35.046 35.046 44 24 44C12.954 44 4 35.046 4 24C4 12.954 12.954 4 24 4" stroke="#4285F4" strokeWidth="3"/>
-                      <path d="M44 24C44 35.046 35.046 44 24 44" stroke="#34A853" strokeWidth="3"/>
-                      <path d="M24 4C35.046 4 44 12.954 44 24" stroke="#FBBC04" strokeWidth="3"/>
-                      <path d="M4 24C4 12.954 12.954 4 24 4" stroke="#EA4335" strokeWidth="3"/>
+                      <path d="M44 24C44 35.046 35.046 44 24 44C12.954 44 4 35.046 4 24C4 12.954 12.954 4 24 4" stroke="#4285F4" strokeWidth="3" />
+                      <path d="M44 24C44 35.046 35.046 44 24 44" stroke="#34A853" strokeWidth="3" />
+                      <path d="M24 4C35.046 4 44 12.954 44 24" stroke="#FBBC04" strokeWidth="3" />
+                      <path d="M4 24C4 12.954 12.954 4 24 4" stroke="#EA4335" strokeWidth="3" />
                     </svg>
                   </div>
                   <div className="text-left">
@@ -657,8 +683,8 @@ const PaymentModal = ({ isOpen, onClose }) => {
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
                     <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
-                      <circle cx="24" cy="24" r="20" fill="#5F259F"/>
-                      <path d="M24 8L32 24L24 40L16 24L24 8Z" fill="white"/>
+                      <circle cx="24" cy="24" r="20" fill="#5F259F" />
+                      <path d="M24 8L32 24L24 40L16 24L24 8Z" fill="white" />
                     </svg>
                   </div>
                   <div className="text-left">
@@ -675,16 +701,15 @@ const PaymentModal = ({ isOpen, onClose }) => {
               <button
                 onClick={() => !isIOS() && handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'bhim')}
                 disabled={processingPayment !== null || isIOS()}
-                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all disabled:cursor-not-allowed group relative ${
-                  isIOS() 
-                    ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 opacity-60' 
+                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all disabled:cursor-not-allowed group relative ${isIOS()
+                    ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 opacity-60'
                     : 'bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-2 border-orange-300 disabled:opacity-50'
-                }`}
+                  }`}
               >
                 <div className="flex items-center space-x-4">
                   <div className={`w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md ${isIOS() ? 'opacity-50' : ''}`}>
                     <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
-                      <rect width="48" height="48" rx="8" fill="#F47920"/>
+                      <rect width="48" height="48" rx="8" fill="#F47920" />
                       <text x="24" y="32" fontSize="24" fontWeight="bold" fill="white" textAnchor="middle">B</text>
                     </svg>
                   </div>
@@ -713,17 +738,16 @@ const PaymentModal = ({ isOpen, onClose }) => {
               <button
                 onClick={() => !isIOS() && handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'paytm')}
                 disabled={processingPayment !== null || isIOS()}
-                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all disabled:cursor-not-allowed group relative ${
-                  isIOS() 
-                    ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 opacity-60' 
+                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all disabled:cursor-not-allowed group relative ${isIOS()
+                    ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 opacity-60'
                     : 'bg-gradient-to-r from-cyan-50 to-cyan-100 hover:from-cyan-100 hover:to-cyan-200 border-2 border-cyan-300 disabled:opacity-50'
-                }`}
+                  }`}
               >
                 <div className="flex items-center space-x-4">
                   <div className={`w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md ${isIOS() ? 'opacity-50' : ''}`}>
                     <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
-                      <circle cx="24" cy="24" r="20" fill="#00BAF2"/>
-                      <path d="M24 12V36M15 24H33" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+                      <circle cx="24" cy="24" r="20" fill="#00BAF2" />
+                      <path d="M24 12V36M15 24H33" stroke="white" strokeWidth="3" strokeLinecap="round" />
                     </svg>
                   </div>
                   <div className="text-left">
@@ -870,7 +894,7 @@ const UserPaymentCard = ({
                 </>
               )}
             </button>
-            
+
             {/* Toggle Custom Amount */}
             <button
               onClick={() => setShowCustom(!showCustom)}
@@ -949,7 +973,7 @@ const UserPaymentCard = ({
               </svg>
               <span>{showUpiId ? 'Hide' : 'Show'} UPI ID</span>
             </button>
-            
+
             {showUpiId && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 animate-slide-down">
                 {upiIds[userId] ? (
@@ -991,4 +1015,3 @@ const UserPaymentCard = ({
 };
 
 export default PaymentModal;
-
