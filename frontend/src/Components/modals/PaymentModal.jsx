@@ -297,18 +297,40 @@ const PaymentModal = ({ isOpen, onClose }) => {
 
   const buildUpiQuery = ({ pa, pn, am, tn, cu = 'INR' }) => {
     const params = new URLSearchParams();
+  
+    // 1. PAYEE ADDRESS (Mandatory)
     params.set('pa', pa); 
+  
+    // 2. PAYEE NAME (Mandatory)
+    // Fix: Encode component to handle special chars in names safely
     params.set('pn', pn);
-    params.set('am', parseFloat(am).toFixed(2)); // Force 2 decimals
+  
+    // 3. AMOUNT (Mandatory)
+    // Fix: Force exactly 2 decimal places (e.g., "14.67").
+    // Banks reject "14.670001" or "14" (sometimes) instantly.
+    params.set('am', parseFloat(am).toFixed(2));
+  
+    // 4. CURRENCY (Mandatory)
     params.set('cu', cu);
     
-    // Clean the note (remove special chars that break bank regex)
-    const cleanNote = tn ? tn.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 30) : "Payment";
+    // 5. NOTE (Optional but Risky)
+    // Fix for P2P: Keep it VERY short (max 20 chars) and alphanumeric only.
+    // Long notes like "Dinner split with friends..." often trigger P2P spam filters.
+    const cleanNote = tn 
+      ? tn.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 20) 
+      : "Pay";
     params.set('tn', cleanNote);
     
-    // CRITICAL FIX: Add a unique Transaction Reference ID
-    // This tells the bank this is a specific, trackable request
-    params.set('tr', `SPL${Date.now()}`); 
+    // 6. TRANSACTION REF (Critical Fix)
+    // Even for P2P, GPay/PhonePe need a unique ID to prevent "Duplicate Transaction" errors.
+    params.set('tr', `P2P${Date.now()}`); 
+  
+    // -----------------------------------------------------------
+    // CRITICAL P2P RULES - DO NOT ADD THESE:
+    // -----------------------------------------------------------
+    // 1. DO NOT add 'mc' (Merchant Code). Sending 'mc' to a personal user causes instant failure.
+    // 2. DO NOT add 'mode'. Let the app decide the mode.
+    // 3. DO NOT add 'orgid'. This is for verified businesses only.
     
     return params.toString();
   };
