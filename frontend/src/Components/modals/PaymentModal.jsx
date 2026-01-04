@@ -266,18 +266,9 @@ const PaymentModal = ({ isOpen, onClose }) => {
     }
   }, [userBalances, searchTerm, settlementOnlyMode, activeGroup, pastMembers, user, upiIds]);
 
-  // Build UPI payment URL
-  const buildUpiQueryOLD = ({ pa, pn, am, tn, cu = 'INR' }) => {
-    const params = new URLSearchParams();
-    params.set('pa', pa); // UPI ID
-    if (pn) params.set('pn', pn);
-    if (am) params.set('am', String(am));
-    params.set('cu', cu);
-    if (tn) params.set('tn', tn);
-    return params.toString();
-  };
 
-  const buildUpiQuery = ({ pa, pn, am, tn, cu = 'INR' }) => {
+
+  const buildUpiQueryOLD = ({ pa, pn, am, tn, cu = 'INR' }) => {
     // 1. Sanitize the Amount: Ensure strictly 2 decimal places
     // This prevents floating point errors like 14.6666667 which banks reject
     const cleanAmount = parseFloat(am).toFixed(2);
@@ -294,7 +285,6 @@ const PaymentModal = ({ isOpen, onClose }) => {
     // Adding a unique 'tr' often bypasses "duplicate/spam" filters in banking apps
     const transactionRef = `SPLIT${Date.now()}`;
 
-    // 4. Manual String Construction (Safest for Cross-Platform)
     let link = `pa=${encodeURIComponent(pa)}`;
     link += `&pn=${encodeURIComponent(pn || '')}`;
     link += `&am=${cleanAmount}`;
@@ -303,6 +293,24 @@ const PaymentModal = ({ isOpen, onClose }) => {
     link += `&tr=${transactionRef}`; // Important for tracking
 
     return link;
+  };
+
+  const buildUpiQuery = ({ pa, pn, am, tn, cu = 'INR' }) => {
+    const params = new URLSearchParams();
+    params.set('pa', pa); 
+    params.set('pn', pn);
+    params.set('am', parseFloat(am).toFixed(2)); // Force 2 decimals
+    params.set('cu', cu);
+    
+    // Clean the note (remove special chars that break bank regex)
+    const cleanNote = tn ? tn.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 30) : "Payment";
+    params.set('tn', cleanNote);
+    
+    // CRITICAL FIX: Add a unique Transaction Reference ID
+    // This tells the bank this is a specific, trackable request
+    params.set('tr', `SPL${Date.now()}`); 
+    
+    return params.toString();
   };
 
   const openPayment = ({ pa, pn, am, tn, from, to, appType }) => {
