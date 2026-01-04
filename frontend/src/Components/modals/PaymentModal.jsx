@@ -645,48 +645,78 @@ const PaymentModal = ({ isOpen, onClose }) => {
 
               {/* BHIM UPI */}
               <button
-                onClick={() => handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'bhim')}
-                disabled={processingPayment !== null}
-                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-2 border-orange-300 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                onClick={() => !isIOS() && handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'bhim')}
+                disabled={processingPayment !== null || isIOS()}
+                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all disabled:cursor-not-allowed group relative ${
+                  isIOS() 
+                    ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 opacity-60' 
+                    : 'bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-2 border-orange-300 disabled:opacity-50'
+                }`}
               >
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+                  <div className={`w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md ${isIOS() ? 'opacity-50' : ''}`}>
                     <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
                       <rect width="48" height="48" rx="8" fill="#F47920"/>
                       <text x="24" y="32" fontSize="24" fontWeight="bold" fill="white" textAnchor="middle">B</text>
                     </svg>
                   </div>
                   <div className="text-left">
-                    <p className="font-bold text-gray-900">BHIM UPI</p>
-                    <p className="text-xs text-gray-600">Pay with BHIM</p>
+                    <div className="flex items-center gap-2">
+                      <p className={`font-bold ${isIOS() ? 'text-gray-500' : 'text-gray-900'}`}>BHIM UPI</p>
+                      {isIOS() && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-semibold">
+                          Coming Soon
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-xs ${isIOS() ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {isIOS() ? 'Not available on iOS yet' : 'Pay with BHIM'}
+                    </p>
                   </div>
                 </div>
-                <svg className="w-6 h-6 text-orange-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                {!isIOS() && (
+                  <svg className="w-6 h-6 text-orange-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                )}
               </button>
 
               {/* Paytm */}
               <button
-                onClick={() => handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'paytm')}
-                disabled={processingPayment !== null}
-                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-cyan-50 to-cyan-100 hover:from-cyan-100 hover:to-cyan-200 border-2 border-cyan-300 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                onClick={() => !isIOS() && handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'paytm')}
+                disabled={processingPayment !== null || isIOS()}
+                className={`w-full flex items-center justify-between p-4 rounded-xl transition-all disabled:cursor-not-allowed group relative ${
+                  isIOS() 
+                    ? 'bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 opacity-60' 
+                    : 'bg-gradient-to-r from-cyan-50 to-cyan-100 hover:from-cyan-100 hover:to-cyan-200 border-2 border-cyan-300 disabled:opacity-50'
+                }`}
               >
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+                  <div className={`w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md ${isIOS() ? 'opacity-50' : ''}`}>
                     <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
                       <circle cx="24" cy="24" r="20" fill="#00BAF2"/>
                       <path d="M24 12V36M15 24H33" stroke="white" strokeWidth="3" strokeLinecap="round"/>
                     </svg>
                   </div>
                   <div className="text-left">
-                    <p className="font-bold text-gray-900">Paytm</p>
-                    <p className="text-xs text-gray-600">Pay with Paytm</p>
+                    <div className="flex items-center gap-2">
+                      <p className={`font-bold ${isIOS() ? 'text-gray-500' : 'text-gray-900'}`}>Paytm</p>
+                      {isIOS() && (
+                        <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-semibold">
+                          Coming Soon
+                        </span>
+                      )}
+                    </div>
+                    <p className={`text-xs ${isIOS() ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {isIOS() ? 'Not available on iOS yet' : 'Pay with Paytm'}
+                    </p>
                   </div>
                 </div>
-                <svg className="w-6 h-6 text-cyan-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+                {!isIOS() && (
+                  <svg className="w-6 h-6 text-cyan-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                )}
               </button>
             </div>
 
