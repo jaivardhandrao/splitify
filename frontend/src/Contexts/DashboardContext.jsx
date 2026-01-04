@@ -15,7 +15,7 @@ export const DashboardProvider = ({ children }) => {
   const [optimizedTransactions, setOptimizedTransactions] = useState([]);
   const [isCalculating, setIsCalculating] = useState(false);
   const [joinRequests, setJoinRequests] = useState([]);
-  const [user, setUser] = useState({ _id: '', email: '', name: '', phone: '' });
+  const [user, setUser] = useState({ _id: '', email: '', name: '', phone: '', upiId: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notification, setNotification] = useState('');
@@ -30,7 +30,7 @@ export const DashboardProvider = ({ children }) => {
   const [isMyExpensesLoading, setIsMyExpensesLoading] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL;
-  const APP_URL = 'https://splitify-pi.vercel.app/';
+  const APP_URL = import.meta.env.VITE_APP_URL || 'https://splitify-pi.vercel.app/';
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
 
@@ -52,6 +52,7 @@ export const DashboardProvider = ({ children }) => {
           email: res.data.email,
           name: res.data.name || 'User',
           phone: res.data.phone || 'N/A',
+          upiId: res.data.upiId || ''
         });
         fetchGroups();
       })

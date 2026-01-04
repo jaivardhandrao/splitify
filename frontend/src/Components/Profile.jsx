@@ -10,9 +10,11 @@ function Profile() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: ''
+    phone: '',
+    upiId: ''
   });
   const [loading, setLoading] = useState(false);
+  const [upiLoading, setUpiLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -21,7 +23,8 @@ function Profile() {
       setFormData({
         name: user.name || '',
         email: user.email || '',
-        phone: user.phone || ''
+        phone: user.phone || '',
+        upiId: user.upiId || ''
       });
     }
   }, [user]);
@@ -87,11 +90,52 @@ function Profile() {
     setFormData({
       name: user.name || '',
       email: user.email || '',
-      phone: user.phone || ''
+      phone: user.phone || '',
+      upiId: user.upiId || ''
     });
     setIsEditing(false);
     setError('');
     setSuccess('');
+  };
+
+  const handleUpiSave = async () => {
+    // Basic UPI ID validation
+    if (formData.upiId && !/^[\w.-]+@[\w.-]+$/.test(formData.upiId)) {
+      setError('Invalid UPI ID format. Should be like yourname@bank');
+      return;
+    }
+
+    setUpiLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await axios.put(
+        `${API_BASE}/auth/upi`,
+        { upiId: formData.upiId },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setUser({
+        ...user,
+        upiId: formData.upiId
+      });
+
+      // Clear the UPI reminder dismissal so it won't show again
+      localStorage.removeItem('upiReminderDismissed');
+
+      setSuccess('UPI ID updated successfully!');
+      
+      if (showNotification) {
+        showNotification('UPI ID updated successfully!');
+      }
+
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update UPI ID');
+    } finally {
+      setUpiLoading(false);
+    }
   };
 
   return (
@@ -230,6 +274,69 @@ function Profile() {
                 )}
               </div>
 
+              {/* UPI ID Field */}
+              <div className="border-t border-gray-200 pt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    UPI ID (for receiving payments)
+                  </label>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    For Mobile Payments
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    name="upiId"
+                    value={formData.upiId}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 font-mono text-sm"
+                    placeholder="yourname@paytm, yourname@ybl, etc."
+                  />
+                  <div className="flex items-start space-x-2 text-xs text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <svg className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                      <p className="font-medium text-blue-900 mb-1">What is a UPI ID?</p>
+                      <p className="text-blue-700">
+                        Your UPI ID (Virtual Payment Address) is used for receiving payments. Example formats: 
+                        <span className="font-mono bg-white px-1 py-0.5 rounded mx-1">yourname@paytm</span>,
+                        <span className="font-mono bg-white px-1 py-0.5 rounded mx-1">9876543210@ybl</span>
+                      </p>
+                      <p className="text-blue-700 mt-2">
+                        Other members can pay you directly from their mobile devices when you add your UPI ID.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleUpiSave}
+                    disabled={upiLoading}
+                    className="w-full inline-flex items-center justify-center space-x-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 font-medium shadow-md hover:shadow-lg"
+                  >
+                    {upiLoading ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Updating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Save UPI ID</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
               {/* Action Buttons */}
               {isEditing && (
                 <div className="flex flex-col sm:flex-row gap-3 pt-4">
@@ -277,9 +384,12 @@ function Profile() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div className="flex-1">
-                <h3 className="text-sm font-medium text-blue-900 mb-1">Account Information</h3>
-                <p className="text-xs text-blue-700">
+                <h3 className="text-sm font-medium text-blue-900 mb-1">Account & Payment Information</h3>
+                <p className="text-xs text-blue-700 mb-2">
                   Your profile information is used across all groups. Other members will see your name and email when you're part of their groups.
+                </p>
+                <p className="text-xs text-blue-700">
+                  💡 <strong>Add your UPI ID</strong> to receive payments directly from other group members on their mobile devices. This enables instant UPI payments via Google Pay, PhonePe, Paytm, and other UPI apps.
                 </p>
               </div>
             </div>
