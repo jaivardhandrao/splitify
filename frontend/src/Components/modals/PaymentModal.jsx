@@ -12,6 +12,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
   const [processingPayment, setProcessingPayment] = useState(null);
   const [upiIds, setUpiIds] = useState({});
   const [settlementOnlyMode, setSettlementOnlyMode] = useState(true);
+  const [showAppSelector, setShowAppSelector] = useState(null); // { userId, amount, isCustom }
 
   // Device detection
   const isMobile = () => {
@@ -265,44 +266,72 @@ const PaymentModal = ({ isOpen, onClose }) => {
     return params.toString();
   };
 
-  const openPayment = ({ pa, pn, am, tn, from, to }) => {
+  const openPayment = ({ pa, pn, am, tn, from, to, appType }) => {
     if (!isMobile()) {
       return; // Desktop fallback will show UPI ID
     }
 
     const q = buildUpiQuery({ pa, pn, am, tn });
-    
-    // Use generic UPI deep link - let the OS handle app picker
-    // This prevents the "repeatedly trying to open" security warning
-    const upiUrl = `upi://pay?${q}`;
-    
-    // Single call - iOS and Android will show native app chooser
-    // User can pick: Google Pay, PhonePe, BHIM, Paytm, or any installed UPI app
-    window.location.href = upiUrl;
-    
-    // Optional: Detect if no UPI app is installed (user still on page after 2s)
-    setTimeout(() => {
-      if (document.visibilityState === 'visible') {
-        // User is still on the page - might not have any UPI app
-        const shouldInstall = confirm(
-          'No UPI app detected. Would you like to install Google Pay?'
-        );
-        if (shouldInstall) {
-          if (isIOS()) {
-            window.location.href = 'https://apps.apple.com/app/google-pay/id1193357041';
-          } else {
-            window.location.href = 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user';
-          }
-        }
+    let deepLink = '';
+
+    // Build app-specific deep links based on user selection
+    if (appType === 'gpay') {
+      // Google Pay
+      if (isIOS()) {
+        deepLink = `gpay://upi/pay?${q}`;
+      } else if (isAndroid()) {
+        deepLink = `intent://pay?${q}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end`;
+      } else {
+        deepLink = `gpay://upi/pay?${q}`;
       }
-    }, 2000);
+    } else if (appType === 'phonepe') {
+      // PhonePe
+      if (isIOS()) {
+        deepLink = `phonepe://pay?${q}`;
+      } else if (isAndroid()) {
+        deepLink = `intent://pay?${q}#Intent;scheme=upi;package=com.phonepe.app;end`;
+      } else {
+        deepLink = `phonepe://pay?${q}`;
+      }
+    } else if (appType === 'bhim') {
+      // BHIM UPI
+      if (isIOS()) {
+        deepLink = `bhim://pay?${q}`;
+      } else if (isAndroid()) {
+        deepLink = `intent://pay?${q}#Intent;scheme=upi;package=in.org.npci.upiapp;end`;
+      } else {
+        deepLink = `upi://pay?${q}`;
+      }
+    } else if (appType === 'paytm') {
+      // Paytm
+      deepLink = `paytmmp://pay?${q}`;
+    } else {
+      // Fallback - generic UPI
+      deepLink = `upi://pay?${q}`;
+    }
+
+    // Open the selected app
+    window.location.href = deepLink;
   };
 
-  const handlePayment = async (userId, amount, isCustom = false) => {
+  const handlePayment = async (userId, amount, isCustom = false, appType = null) => {
     const userToPayId = userId;
     const userToPay = userBalances[userToPayId];
     
     if (!userToPay) return;
+
+    const finalAmount = isCustom ? customAmounts[userToPayId] : amount;
+    
+    if (!finalAmount || finalAmount <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    // If on mobile and no app selected yet, show app selector
+    if (isMobile() && !appType) {
+      setShowAppSelector({ userId: userToPayId, amount: finalAmount, isCustom });
+      return;
+    }
 
     // Fetch UPI ID
     setProcessingPayment(userToPayId);
@@ -314,27 +343,21 @@ const PaymentModal = ({ isOpen, onClose }) => {
       return;
     }
 
-    const finalAmount = isCustom ? customAmounts[userToPayId] : amount;
-    
-    if (!finalAmount || finalAmount <= 0) {
-      alert('Please enter a valid amount');
-      setProcessingPayment(null);
-      return;
-    }
-
-    // On mobile: trigger UPI payment
-    if (isMobile()) {
+    // On mobile: trigger UPI payment with selected app
+    if (isMobile() && appType) {
       openPayment({
         pa: upiId,
         pn: userToPay.name,
         am: finalAmount.toFixed(2),
         tn: `${user.name} to ${userToPay.name} - Splitify`,
         from: user.name,
-        to: userToPay.name
+        to: userToPay.name,
+        appType: appType
       });
       
-      // Close modal after initiating payment
+      // Close app selector and modal after initiating payment
       setTimeout(() => {
+        setShowAppSelector(null);
         setProcessingPayment(null);
         onClose();
       }, 1000);
@@ -542,9 +565,10 @@ const PaymentModal = ({ isOpen, onClose }) => {
                   <span className="bg-white px-2 py-1 rounded border border-gray-200">Google Pay</span>
                   <span className="bg-white px-2 py-1 rounded border border-gray-200">PhonePe</span>
                   <span className="bg-white px-2 py-1 rounded border border-gray-200">BHIM UPI</span>
+                  <span className="bg-white px-2 py-1 rounded border border-gray-200">Paytm</span>
                 </div>
                 <p className="text-xs text-gray-500">
-                  💡 Choose your UPI app from the popup. Payment confirmation is not recorded automatically.
+                  💡 Choose your preferred UPI app when making payment. Details will be prefilled.
                 </p>
               </>
             ) : (
@@ -555,6 +579,136 @@ const PaymentModal = ({ isOpen, onClose }) => {
           </div>
         </div>
       </div>
+
+      {/* App Selector Modal Overlay */}
+      {showAppSelector && (
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-10 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Choose Payment App</h3>
+              <p className="text-sm text-gray-600">
+                Select your preferred UPI app to complete payment of{' '}
+                <span className="font-bold text-emerald-600">
+                  {currentCurrency === 'USD' ? '$' : currentCurrency === 'GBP' ? '£' : '₹'}
+                  {showAppSelector.amount.toFixed(2)}
+                </span>
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {/* Google Pay */}
+              <button
+                onClick={() => handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'gpay')}
+                disabled={processingPayment !== null}
+                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border-2 border-blue-300 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+                    <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
+                      <path d="M44 24C44 35.046 35.046 44 24 44C12.954 44 4 35.046 4 24C4 12.954 12.954 4 24 4" stroke="#4285F4" strokeWidth="3"/>
+                      <path d="M44 24C44 35.046 35.046 44 24 44" stroke="#34A853" strokeWidth="3"/>
+                      <path d="M24 4C35.046 4 44 12.954 44 24" stroke="#FBBC04" strokeWidth="3"/>
+                      <path d="M4 24C4 12.954 12.954 4 24 4" stroke="#EA4335" strokeWidth="3"/>
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900">Google Pay</p>
+                    <p className="text-xs text-gray-600">Pay with GPay</p>
+                  </div>
+                </div>
+                <svg className="w-6 h-6 text-blue-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* PhonePe */}
+              <button
+                onClick={() => handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'phonepe')}
+                disabled={processingPayment !== null}
+                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border-2 border-purple-300 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+                    <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
+                      <circle cx="24" cy="24" r="20" fill="#5F259F"/>
+                      <path d="M24 8L32 24L24 40L16 24L24 8Z" fill="white"/>
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900">PhonePe</p>
+                    <p className="text-xs text-gray-600">Pay with PhonePe</p>
+                  </div>
+                </div>
+                <svg className="w-6 h-6 text-purple-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* BHIM UPI */}
+              <button
+                onClick={() => handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'bhim')}
+                disabled={processingPayment !== null}
+                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 border-2 border-orange-300 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+                    <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
+                      <rect width="48" height="48" rx="8" fill="#F47920"/>
+                      <text x="24" y="32" fontSize="24" fontWeight="bold" fill="white" textAnchor="middle">B</text>
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900">BHIM UPI</p>
+                    <p className="text-xs text-gray-600">Pay with BHIM</p>
+                  </div>
+                </div>
+                <svg className="w-6 h-6 text-orange-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+
+              {/* Paytm */}
+              <button
+                onClick={() => handlePayment(showAppSelector.userId, showAppSelector.amount, showAppSelector.isCustom, 'paytm')}
+                disabled={processingPayment !== null}
+                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-cyan-50 to-cyan-100 hover:from-cyan-100 hover:to-cyan-200 border-2 border-cyan-300 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
+                    <svg className="w-7 h-7" viewBox="0 0 48 48" fill="none">
+                      <circle cx="24" cy="24" r="20" fill="#00BAF2"/>
+                      <path d="M24 12V36M15 24H33" stroke="white" strokeWidth="3" strokeLinecap="round"/>
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900">Paytm</p>
+                    <p className="text-xs text-gray-600">Pay with Paytm</p>
+                  </div>
+                </div>
+                <svg className="w-6 h-6 text-cyan-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Cancel Button */}
+            <button
+              onClick={() => setShowAppSelector(null)}
+              className="w-full mt-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
+            >
+              Cancel
+            </button>
+
+            {/* Processing Indicator */}
+            {processingPayment !== null && (
+              <div className="mt-4 flex items-center justify-center space-x-2 text-sm text-gray-600">
+                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <span>Opening payment app...</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes fade-in {
