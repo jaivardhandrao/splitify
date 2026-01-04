@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useDashboard } from '../../Contexts/DashboardContext';
 import axios from 'axios';
 
@@ -13,6 +13,12 @@ const PaymentModal = ({ isOpen, onClose }) => {
   const [upiIds, setUpiIds] = useState({});
   const [settlementOnlyMode, setSettlementOnlyMode] = useState(true);
   const [showAppSelector, setShowAppSelector] = useState(null); // { userId, amount, isCustom }
+  
+  // Use ref for synchronous access to UPI IDs (critical for iOS deep linking)
+  const upiIdsRef = useRef({});
+  useEffect(() => {
+    upiIdsRef.current = upiIds;
+  }, [upiIds]);
 
   // Device detection
   const isMobile = () => {
@@ -153,9 +159,12 @@ const PaymentModal = ({ isOpen, onClose }) => {
     setIsLoading(false);
   };
 
-  // Fetch UPI IDs for users
+  // Fetch UPI IDs for users (returns cached value if exists, even if null)
   const fetchUpiId = async (userId) => {
-    if (upiIds[userId]) return upiIds[userId];
+    // Check if we already have this user's UPI ID cached (even if it's null)
+    if (Object.prototype.hasOwnProperty.call(upiIds, userId)) {
+      return upiIds[userId];
+    }
     
     try {
       const response = await axios.get(`${API_BASE}/auth/user/${userId}/upi`, {
@@ -166,6 +175,8 @@ const PaymentModal = ({ isOpen, onClose }) => {
       return upiId;
     } catch (error) {
       console.error('Failed to fetch UPI ID:', error);
+      // Cache null result to avoid repeated failed requests
+      setUpiIds(prev => ({ ...prev, [userId]: null }));
       return null;
     }
   };
@@ -287,6 +298,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     } else if (appType === 'phonepe') {
       // PhonePe
       if (isIOS()) {
+        // iOS PhonePe deep link
         deepLink = `phonepe://pay?${q}`;
       } else if (isAndroid()) {
         deepLink = `intent://pay?${q}#Intent;scheme=upi;package=com.phonepe.app;end`;
@@ -303,17 +315,23 @@ const PaymentModal = ({ isOpen, onClose }) => {
       }
     } else if (appType === 'paytm') {
       // Paytm
-      deepLink = `paytmmp://pay?${q}`;
+      if (isAndroid()) {
+        deepLink = `intent://pay?${q}#Intent;scheme=upi;package=net.one97.paytm;end`;
+      } else {
+        // iOS - Paytm deep link
+        deepLink = `paytmmp://upi?${q}`;
+      }
     } else {
       // Fallback - generic UPI
       deepLink = `upi://pay?${q}`;
     }
 
-    // Open the selected app
+    // CRITICAL: Open deep link synchronously (no await before this!)
+    // This ensures it happens in the same user gesture call stack
     window.location.href = deepLink;
   };
 
-  const handlePayment = async (userId, amount, isCustom = false, appType = null) => {
+  const handlePayment = (userId, amount, isCustom = false, appType = null) => {
     const userToPayId = userId;
     const userToPay = userBalances[userToPayId];
     
@@ -332,18 +350,28 @@ const PaymentModal = ({ isOpen, onClose }) => {
       return;
     }
 
-    // Fetch UPI ID
-    setProcessingPayment(userToPayId);
-    const upiId = await fetchUpiId(userToPayId);
+    // CRITICAL: Get UPI ID synchronously from ref (no await!)
+    // This ensures we stay in the user gesture call stack for iOS
+    const upiId = upiIdsRef.current[userToPayId];
     
-    if (!upiId) {
+    // Check if UPI ID is loaded
+    if (!Object.prototype.hasOwnProperty.call(upiIdsRef.current, userToPayId)) {
+      alert("Loading payment details... Please try again in a moment.");
+      // Trigger fetch in background
+      fetchUpiId(userToPayId);
+      return;
+    }
+    
+    if (!upiId || upiId.trim() === '') {
       alert(`${userToPay.name} hasn't set up their UPI ID yet. Please ask them to add it in their profile.`);
-      setProcessingPayment(null);
       return;
     }
 
-    // On mobile: trigger UPI payment with selected app
+    // On mobile: trigger UPI payment with selected app (SYNCHRONOUSLY)
     if (isMobile() && appType) {
+      setProcessingPayment(userToPayId);
+      
+      // Open payment app immediately (no await before this!)
       openPayment({
         pa: upiId,
         pn: userToPay.name,
