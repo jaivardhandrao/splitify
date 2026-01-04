@@ -294,12 +294,11 @@ const PaymentModal = ({ isOpen, onClose }) => {
         deepLink = `phonepe://pay?${q}`;
       }
     } else if (appType === 'bhim') {
-      // BHIM UPI
-      if (isIOS()) {
-        deepLink = `bhim://pay?${q}`;
-      } else if (isAndroid()) {
+      // BHIM UPI - Uses standard UPI scheme with app-specific intent on Android
+      if (isAndroid()) {
         deepLink = `intent://pay?${q}#Intent;scheme=upi;package=in.org.npci.upiapp;end`;
       } else {
+        // iOS and generic - use standard UPI scheme (BHIM supports this)
         deepLink = `upi://pay?${q}`;
       }
     } else if (appType === 'paytm') {
