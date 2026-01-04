@@ -261,36 +261,60 @@ function DashboardContent() {
                   <p className="text-gray-600 text-lg font-medium">Select a group from the sidebar</p>
                   <p className="text-gray-500 text-sm mt-1 mb-6">Choose a group to view expenses and transactions</p>
 
-                  {/* New Feature Badge */}
-                  <div className="relative inline-block" onClick={() => navigate('/my-expenses')}>
+                  {/* UPI Payment Feature Badge */}
+                  <div className="relative inline-block" onClick={() => navigate('/profile')}>
                     {/* Pulsing glow effect */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-400 to-pink-500 rounded-xl blur-lg opacity-50 animate-pulse"></div>
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-xl blur-lg opacity-50 animate-pulse"></div>
 
                     {/* Main Card */}
-                    <div className="relative bg-gradient-to-br from-purple-500 via-purple-600 to-pink-500 text-white px-6 py-4 rounded-xl shadow-2xl transform transition-all duration-300 hover:scale-102 hover:shadow-purple-500/50 cursor-pointer group">
+                    <div className="relative bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 text-white px-6 py-4 rounded-xl shadow-2xl transform transition-all duration-300 hover:scale-102 hover:shadow-blue-500/50 cursor-pointer group">
                       {/* NEW badge */}
                       <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded-full shadow-lg animate-pulse">
                         NEW ✨
                       </div>
 
                       {/* Sparkle decorations */}
-                      <div className="absolute -top-1 -left-1 text-yellow-300 animate-ping">✨</div>
-                      <div className="absolute -bottom-1 -right-1 text-yellow-300 animate-ping" style={{ animationDelay: '0.5s' }}>✨</div>
+                      <div className="absolute -top-1 -left-1 text-yellow-300 animate-ping">💳</div>
+                      <div className="absolute -bottom-1 -right-1 text-yellow-300 animate-ping" style={{ animationDelay: '0.5s' }}>💰</div>
 
-                      <div className="flex items-center space-x-3">
-                        <svg className="w-8 h-8 text-white group-hover:rotate-12 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <div className="text-left">
-                          <p className="font-bold text-lg">My Expenses</p>
-                          <p className="text-purple-100 text-sm">Track all your expenses across groups!</p>
+                      <div className="flex items-center space-x-3 mb-3">
+                        <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                          <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                        </div>
+                        <div className="text-left flex-1">
+                          <p className="font-bold text-lg">Pay with UPI Instantly!</p>
+                          <p className="text-blue-100 text-sm">Google Pay • PhonePe • BHIM</p>
                         </div>
                       </div>
 
-                      {/* Arrow indicator */}
-                      <div className="mt-2 flex items-center justify-center space-x-1 text-sm opacity-90 group-hover:opacity-100 transition-opacity">
-                        <span>Click to explore</span>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {/* Feature highlights */}
+                      <div className="space-y-2 mb-3 bg-white/10 rounded-lg p-3 backdrop-blur-sm">
+                        <div className="flex items-center space-x-2 text-sm">
+                          <svg className="w-4 h-4 text-green-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-blue-50">Add your UPI ID & receive payments</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm">
+                          <svg className="w-4 h-4 text-green-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-blue-50">Pay friends with one tap on mobile</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm">
+                          <svg className="w-4 h-4 text-green-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="text-blue-50">Ask friends to add their UPI ID too!</span>
+                        </div>
+                      </div>
+
+                      {/* Call to action */}
+                      <div className="flex items-center justify-between bg-white/20 rounded-lg px-3 py-2 backdrop-blur-sm">
+                        <span className="text-sm font-semibold">Click to add your UPI ID →</span>
+                        <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                         </svg>
                       </div>
