@@ -10,6 +10,7 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String, sparse: true, unique: true },
   authProvider: { type: String, enum: ['local', 'google'], default: 'local' },
   profilePicture: { type: String },
+  upiId: { type: String, default: '' },
   groups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
   ownedGroups: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Group' }],
 }, { timestamps: true });

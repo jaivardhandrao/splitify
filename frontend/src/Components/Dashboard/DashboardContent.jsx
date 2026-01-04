@@ -8,11 +8,13 @@ import Notification from '../Notification';
 import JoinRequests from '../JoinRequests';
 import NavBar from '../NavBar';
 import GroupSettingsDropdown from '../modals/GroupSettingsDropdown';
+import UpiIdReminder from '../UpiIdReminder';
 import { useNavigate } from 'react-router-dom';
 
 // Inside your component
 
 const AddExpenseModal = lazy(() => import('../modals/AddExpenseModal'));
+const PaymentModal = lazy(() => import('../modals/PaymentModal'));
 
 function DashboardContent() {
   const navigate = useNavigate();
@@ -25,6 +27,7 @@ function DashboardContent() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -76,6 +79,9 @@ function DashboardContent() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Notification */}
       {notification && <Notification message={notification} />}
+
+      {/* UPI ID Reminder */}
+      <UpiIdReminder />
 
       {/* Navbar Component */}
       <NavBar
@@ -186,6 +192,38 @@ function DashboardContent() {
                 {/* Past Members */}
                 <PastMembers />
 
+                {/* I Want to Pay Button */}
+                <div className="mb-6">
+                  <button
+                    onClick={() => setIsPaymentModalOpen(true)}
+                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-out transform hover:scale-[1.02] hover:from-blue-600 hover:to-blue-700 active:scale-[0.98] border border-blue-400/20 overflow-hidden group relative"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0 -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out"></div>
+                    
+                    <div className="relative flex items-center justify-center space-x-3">
+                      <svg
+                        className="w-6 h-6 transition-transform group-hover:scale-110 duration-300"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      <span className="relative">I Want to Pay</span>
+                      <svg
+                        className="w-5 h-5 transition-transform group-hover:translate-x-1 duration-300"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </div>
+
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-300/0 via-blue-300/80 to-blue-300/0 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out"></div>
+                  </button>
+                </div>
+
                 {/* Optimized Transactions */}
                 <OptimizedTransactions />
 
@@ -283,6 +321,12 @@ function DashboardContent() {
           <AddExpenseModal
             isOpen={isAddExpenseModalOpen}
             onClose={() => setIsAddExpenseModalOpen(false)}
+          />
+        )}
+        {isPaymentModalOpen && (
+          <PaymentModal
+            isOpen={isPaymentModalOpen}
+            onClose={() => setIsPaymentModalOpen(false)}
           />
         )}
       </Suspense>

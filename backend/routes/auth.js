@@ -14,7 +14,7 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // GET /api/auth/me - Get logged-in user info
 router.get('/me', auth, async (req, res) => {
-  res.json({ id: req.user._id, email: req.user.email, name: req.user.name, phone: req.user.phone });
+  res.json({ id: req.user._id, email: req.user.email, name: req.user.name, phone: req.user.phone, upiId: req.user.upiId });
 });
 
 // PUT /api/auth/profile - Update user profile (name and phone only, email is locked)
@@ -44,6 +44,47 @@ router.put('/profile', auth, async (req, res) => {
   } catch (error) {
     console.error('Profile update error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// PUT /api/auth/upi - Update user UPI ID
+router.put('/upi', auth, async (req, res) => {
+  try {
+    const { upiId } = req.body;
+
+    // Basic UPI ID validation (format: xxx@xxx)
+    if (upiId && !/^[\w.-]+@[\w.-]+$/.test(upiId)) {
+      return res.status(400).json({ error: 'Invalid UPI ID format. Should be like yourname@bank' });
+    }
+
+    req.user.upiId = upiId || '';
+    await req.user.save();
+
+    res.json({
+      message: 'UPI ID updated successfully',
+      upiId: req.user.upiId
+    });
+  } catch (error) {
+    console.error('UPI update error:', error);
+    res.status(500).json({ error: 'Failed to update UPI ID' });
+  }
+});
+
+// GET /api/auth/user/:userId/upi - Get user's UPI ID (for payments within groups)
+router.get('/user/:userId/upi', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select('name email upiId');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ 
+      name: user.name, 
+      email: user.email,
+      upiId: user.upiId 
+    });
+  } catch (error) {
+    console.error('Get UPI error:', error);
+    res.status(500).json({ error: 'Failed to fetch UPI ID' });
   }
 });
 
