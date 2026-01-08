@@ -193,7 +193,7 @@ function DashboardContent() {
                 <PastMembers />
 
                 {/* I Want to Pay Button */}
-                <div className="mb-6">
+                {/* <div className="mb-6">
                   <button
                     onClick={() => setIsPaymentModalOpen(true)}
                     className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 px-6 rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 ease-out transform hover:scale-[1.02] hover:from-blue-600 hover:to-blue-700 active:scale-[0.98] border border-blue-400/20 overflow-hidden group relative"
@@ -222,7 +222,7 @@ function DashboardContent() {
 
                     <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-300/0 via-blue-300/80 to-blue-300/0 scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out"></div>
                   </button>
-                </div>
+                </div> */}
 
                 {/* Optimized Transactions */}
                 <OptimizedTransactions />
