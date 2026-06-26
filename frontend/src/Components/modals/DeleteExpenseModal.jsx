@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useDashboard } from '../../Contexts/DashboardContext';
 import axios from 'axios';
 
@@ -15,7 +15,7 @@ const DeleteExpenseModal = ({ expenseId, onClose }) => {
     token,
   } = useDashboard();
 
-  const [deleteError, setDeleteError] = useState('');
+  const deleteError = '';
 
   // Find the expense details for display
   const expense = expenses.find(exp => exp._id === expenseId);
@@ -54,7 +54,7 @@ const DeleteExpenseModal = ({ expenseId, onClose }) => {
       // Close modal
       onClose();
 
-    } catch (err) {
+    } catch {
       // Revert optimistic update on failure by refetching
       showNotification('Expense deleted!');
       const res = await axios.get(

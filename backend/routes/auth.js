@@ -98,12 +98,10 @@ router.post('/register', async (req, res) => {
     if (user) return res.status(400).json({ error: 'User exists' });
 
     user = new User({ email, password, name, phone });
-    
+    await user.save();
+
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '10h' });
     const url = `${process.env.FRONTEND_URL}/verify/${token}`;
-    
-    console.log('🔍 DEBUG: Attempting to send email from:', process.env.EMAIL_FROM);
-    console.log('🔍 DEBUG: Sending to:', email);
 
     await resend.emails.send({
       from: process.env.EMAIL_FROM,
@@ -133,8 +131,6 @@ router.post('/register', async (req, res) => {
     });
 
     res.status(201).json({ message: 'Email sent! Check your inbox (and spam folder) for the verification link.' });
-
-    await user.save();
 
   } catch (error) {
 
@@ -250,22 +246,18 @@ router.post('/reset-password/:token', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    console.log('Login attempt for email:', req.body.email); // Debug
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
     const user = await User.findOne({ email });
-    console.log('User found:', user ? 'Yes' : 'No'); // Debug
     if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
     const passwordMatch = await user.comparePassword(password);
-    console.log('Password match:', passwordMatch); // Debug
     if (!passwordMatch) return res.status(400).json({ error: 'Invalid credentials' });
 
     if (!user.isVerified) return res.status(400).json({ error: 'Please verify your email first' });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '15d' });
-    console.log('Token generated:', token); // Debug
     res.json({ token, user: { id: user._id, email: user.email, name: user.name, phone: user.phone } });
   } catch (error) {
     console.error('Login error:', error.message, error.stack); // Enhanced logging
@@ -291,8 +283,6 @@ router.post('/google', async (req, res) => {
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
 
-    console.log('Google Sign-In attempt for:', email);
-
     // Check if user exists
     let user = await User.findOne({ $or: [{ googleId }, { email }] });
 
@@ -304,7 +294,6 @@ router.post('/google', async (req, res) => {
         user.profilePicture = picture;
         user.isVerified = true; // Auto-verify via Google
         await user.save();
-        console.log('Linked Google account to existing user:', email);
       }
     } else {
       // New user - create account
@@ -318,7 +307,6 @@ router.post('/google', async (req, res) => {
         isVerified: true, // Auto-verify Google users
       });
       await user.save();
-      console.log('Created new Google user:', email);
     }
 
     // Generate JWT token (same as normal login)

@@ -119,47 +119,27 @@ router.post('/:groupId/leave', auth, async (req, res) => {
     const { groupId } = req.params;
     const user = req.user;
 
-    console.log('🔍 Leave Group Request:', {
-      groupId,
-      userId: user._id.toString(),
-      userEmail: user.email
-    });
-
     // Fetch group and check membership
     const group = await Group.findById(groupId).populate('members', '_id email');
     if (!group) {
-      console.log('❌ Group not found');
       return res.status(404).json({ error: 'Group not found' });
     }
-    
-    console.log('📊 Group Info:', {
-      groupName: group.name,
-      ownerId: group.owner.toString(),
-      memberCount: group.members.length,
-      members: group.members.map(m => ({ id: m._id.toString(), email: m.email }))
-    });
-    
+
     if (!group.members.some(m => m._id.toString() === user._id.toString())) {
-      console.log('❌ User not a member');
       return res.status(400).json({ error: 'Not a member of this group' });
     }
 
     // Check if user is the owner
     const isOwner = group.owner.toString() === user._id.toString();
-    console.log('👑 Owner check:', { isOwner, ownerId: group.owner.toString(), userId: user._id.toString() });
-    
+
     if (isOwner) {
       // If owner is the only member, suggest deletion
       if (group.members.length === 1) {
-        console.log('❌ Owner is solo member');
         return res.status(400).json({ error: 'You are the only member and owner of this group. Please delete the group instead.' });
       }
       // Otherwise, suggest transfer ownership
-      console.log('❌ Owner must transfer first');
       return res.status(400).json({ error: 'As the group owner, you must transfer ownership before leaving.' });
     }
-
-    console.log('✅ Regular member leaving...');
 
     // NOTE: No balance check - users can leave with pending balances
     // Their expenses and name remain in the group for historical records
@@ -185,16 +165,13 @@ router.post('/:groupId/leave', auth, async (req, res) => {
       return memberId !== user._id.toString();
     });
     
-    console.log('💾 Saving group with updated members:', group.members.length);
     await group.save();
 
     // Remove group from user's groups
     user.groups = user.groups.filter(g => g.toString() !== groupId);
-    console.log('💾 Saving user with updated groups');
     await user.save();
 
-    console.log('✅ Successfully left group');
-    res.json({ 
+    res.json({
       message: 'Successfully left the group! Your expense history remains visible to other members.' 
     });
   } catch (error) {

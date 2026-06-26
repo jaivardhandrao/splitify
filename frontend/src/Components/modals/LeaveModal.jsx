@@ -3,7 +3,7 @@ import { useDashboard } from '../../Contexts/DashboardContext';  // Capital C
 import axios from 'axios';
 
 const LeaveModal = ({ isOpen, onClose }) => {
-  const { activeGroup, showNotification, setActiveGroup, token, API_BASE, balances, user, fetchGroups } = useDashboard();
+  const { activeGroup, showNotification, setActiveGroup, token, API_BASE, fetchGroups } = useDashboard();
   const [leaveError, setLeaveError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 

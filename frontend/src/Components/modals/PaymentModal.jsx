@@ -7,7 +7,6 @@ const PaymentModal = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [userBalances, setUserBalances] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [paymentAmounts, setPaymentAmounts] = useState({});
   const [customAmounts, setCustomAmounts] = useState({});
   const [processingPayment, setProcessingPayment] = useState(null);
   const [upiIds, setUpiIds] = useState({});
@@ -60,7 +59,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         return { userId, upiId: response.data.upiId };
-      } catch (error) {
+      } catch {
         return { userId, upiId: null };
       }
     });
@@ -268,33 +267,6 @@ const PaymentModal = ({ isOpen, onClose }) => {
 
 
 
-  const buildUpiQueryOLD = ({ pa, pn, am, tn, cu = 'INR' }) => {
-    // 1. Sanitize the Amount: Ensure strictly 2 decimal places
-    // This prevents floating point errors like 14.6666667 which banks reject
-    const cleanAmount = parseFloat(am).toFixed(2);
-
-    // 2. Sanitize the Note: 
-    // - Remove special characters (keep only alphanumeric and spaces)
-    // - Truncate to 30 chars (Banks reject long notes)
-    // - Encode spaces as %20 manually, NOT +
-    const cleanNote = tn
-      ? encodeURIComponent(tn.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 30))
-      : "Splitify";
-
-    // 3. Generate a Transaction Ref (tr)
-    // Adding a unique 'tr' often bypasses "duplicate/spam" filters in banking apps
-    const transactionRef = `SPLIT${Date.now()}`;
-
-    let link = `pa=${encodeURIComponent(pa)}`;
-    link += `&pn=${encodeURIComponent(pn || '')}`;
-    link += `&am=${cleanAmount}`;
-    link += `&cu=${cu}`;
-    link += `&tn=${cleanNote}`;
-    link += `&tr=${transactionRef}`; // Important for tracking
-
-    return link;
-  };
-
   const buildUpiQuery = ({ pa, pn, am, tn, cu = 'INR' }) => {
     const params = new URLSearchParams();
   
@@ -335,7 +307,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     return params.toString();
   };
 
-  const openPayment = ({ pa, pn, am, tn, from, to, appType }) => {
+  const openPayment = ({ pa, pn, am, tn, appType }) => {
     if (!isMobile()) {
       return; // Desktop fallback will show UPI ID
     }
@@ -435,8 +407,6 @@ const PaymentModal = ({ isOpen, onClose }) => {
         pn: userToPay.name,
         am: finalAmount.toFixed(2),
         tn: `${user.name} to ${userToPay.name} - Splitify`,
-        from: user.name,
-        to: userToPay.name,
         appType: appType
       });
 
@@ -464,7 +434,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     try {
       await navigator.clipboard.writeText(upiId);
       alert('UPI ID copied to clipboard!');
-    } catch (err) {
+    } catch {
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = upiId;
