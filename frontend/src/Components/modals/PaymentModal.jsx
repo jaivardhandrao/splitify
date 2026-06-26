@@ -268,33 +268,6 @@ const PaymentModal = ({ isOpen, onClose }) => {
 
 
 
-  const buildUpiQueryOLD = ({ pa, pn, am, tn, cu = 'INR' }) => {
-    // 1. Sanitize the Amount: Ensure strictly 2 decimal places
-    // This prevents floating point errors like 14.6666667 which banks reject
-    const cleanAmount = parseFloat(am).toFixed(2);
-
-    // 2. Sanitize the Note: 
-    // - Remove special characters (keep only alphanumeric and spaces)
-    // - Truncate to 30 chars (Banks reject long notes)
-    // - Encode spaces as %20 manually, NOT +
-    const cleanNote = tn
-      ? encodeURIComponent(tn.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 30))
-      : "Splitify";
-
-    // 3. Generate a Transaction Ref (tr)
-    // Adding a unique 'tr' often bypasses "duplicate/spam" filters in banking apps
-    const transactionRef = `SPLIT${Date.now()}`;
-
-    let link = `pa=${encodeURIComponent(pa)}`;
-    link += `&pn=${encodeURIComponent(pn || '')}`;
-    link += `&am=${cleanAmount}`;
-    link += `&cu=${cu}`;
-    link += `&tn=${cleanNote}`;
-    link += `&tr=${transactionRef}`; // Important for tracking
-
-    return link;
-  };
-
   const buildUpiQuery = ({ pa, pn, am, tn, cu = 'INR' }) => {
     const params = new URLSearchParams();
   

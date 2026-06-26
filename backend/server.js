@@ -7,16 +7,13 @@ dotenv.config();  // Loads .env file
 
 const app = express();
 // CORS configuration - allow local development and production URLs
-app.use(cors({ 
+app.use(cors({
   origin: [
-    'http://localhost:5173',           // Local frontend (Vite default)
-    'http://localhost:3000',           // Alternative local port
-    'http://localhost:5174',           // Alternative Vite port
-    process.env.BACKEND_URL, 
-    process.env.FRONTEND_URL, 
-    'https://splitify-pi.vercel.app/dashboard',
-    'https://splitify-pi.vercel.app/*',
-    'https://splitify-pi.vercel.app/',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:5174',
+    process.env.BACKEND_URL,
+    process.env.FRONTEND_URL,
     'https://splitify-pi.vercel.app'
   ],
   credentials: true
