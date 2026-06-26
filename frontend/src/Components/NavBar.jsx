@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import ProfileDropdown from './ProfileDropdown';
 

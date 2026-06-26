@@ -13,7 +13,6 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
     handleJoinGroup,
     handleDeleteGroup,
     isGroupsLoading,
-    user,
   } = useDashboard();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -26,12 +25,6 @@ const GroupSidebar = ({ isOpen, toggleSidebar }) => {
 
   const handleJoin = () => {
     setIsJoinModalOpen(true);
-  };
-
-  const handleDelete = () => {
-    if (activeGroup) {
-      setIsDeleteModalOpen(true);
-    }
   };
 
   const handleGroupSelect = (group) => {

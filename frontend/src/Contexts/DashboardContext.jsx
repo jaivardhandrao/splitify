@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 const DashboardContext = createContext();
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDashboard = () => useContext(DashboardContext);
 
 export const DashboardProvider = ({ children }) => {
