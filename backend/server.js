@@ -14,7 +14,8 @@ app.use(cors({
     'http://localhost:5174',
     process.env.BACKEND_URL,
     process.env.FRONTEND_URL,
-    'https://splitify-pi.vercel.app'
+    'https://splitify-pi.vercel.app',
+    'https://splitify.jaivardhandrao.in'
   ],
   credentials: true
 }));
