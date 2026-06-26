@@ -42,7 +42,7 @@ function DashboardContent() {
       setTimeout(() => {
         setCopied(false);
       }, 1500);
-    } catch (err) {
+    } catch {
       const textArea = document.createElement('textarea');
       textArea.value = activeGroup._id;
       document.body.appendChild(textArea);

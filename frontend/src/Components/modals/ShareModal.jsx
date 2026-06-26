@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useDashboard } from '../../Contexts/DashboardContext';  // Capital C
-import axios from 'axios';
 
 const ShareModal = ({ isOpen, onClose }) => {
   const { activeGroup, user, showNotification, APP_URL } = useDashboard();

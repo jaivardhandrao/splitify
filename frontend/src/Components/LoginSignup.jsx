@@ -30,13 +30,13 @@ function LoginSignup() {
         .get(`${API_BASE}/auth/me`, { 
           headers: { Authorization: `Bearer ${token}` } 
         })
-        .then((res) => {
+        .then(() => {
           showNotification('Already logged in! Redirecting...');
           setTimeout(() => {
             navigate('/dashboard');
           }, 500);
         })
-        .catch((err) => {
+        .catch(() => {
           localStorage.removeItem('token');
           setIsVerifyingToken(false);
         });

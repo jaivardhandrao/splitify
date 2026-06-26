@@ -7,7 +7,6 @@ const PaymentModal = ({ isOpen, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [userBalances, setUserBalances] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [paymentAmounts, setPaymentAmounts] = useState({});
   const [customAmounts, setCustomAmounts] = useState({});
   const [processingPayment, setProcessingPayment] = useState(null);
   const [upiIds, setUpiIds] = useState({});
@@ -60,7 +59,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
           headers: { Authorization: `Bearer ${token}` }
         });
         return { userId, upiId: response.data.upiId };
-      } catch (error) {
+      } catch {
         return { userId, upiId: null };
       }
     });
@@ -308,7 +307,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     return params.toString();
   };
 
-  const openPayment = ({ pa, pn, am, tn, from, to, appType }) => {
+  const openPayment = ({ pa, pn, am, tn, appType }) => {
     if (!isMobile()) {
       return; // Desktop fallback will show UPI ID
     }
@@ -408,8 +407,6 @@ const PaymentModal = ({ isOpen, onClose }) => {
         pn: userToPay.name,
         am: finalAmount.toFixed(2),
         tn: `${user.name} to ${userToPay.name} - Splitify`,
-        from: user.name,
-        to: userToPay.name,
         appType: appType
       });
 
@@ -437,7 +434,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
     try {
       await navigator.clipboard.writeText(upiId);
       alert('UPI ID copied to clipboard!');
-    } catch (err) {
+    } catch {
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
       textArea.value = upiId;
